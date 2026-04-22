@@ -3,11 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>投資大師 v2</title>
+<title>投資大師 v3</title>
+
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
+
 <style>
 body { background:#000; color:#fff; }
-.card { background:#1c1c1e; padding:15px; border-radius:15px; margin-bottom:10px;}
+
+.scroll-x {
+  display:flex;
+  overflow-x:auto;
+  gap:10px;
+}
+
+.card {
+  min-width:280px;
+  background:#1c1c1e;
+  padding:12px;
+  border-radius:12px;
+}
 </style>
 </head>
 
@@ -16,9 +31,12 @@ body { background:#000; color:#fff; }
 <header class="p-4">
 <h1 class="text-2xl text-emerald-400">投資大師</h1>
 
-<button onclick="updateAllStocks()" class="bg-yellow-500 px-4 py-2 rounded mt-2">
-🔄 全面更新
-</button>
+<div class="flex gap-2 mt-2">
+<button onclick="updateAllStocks()" class="bg-yellow-500 px-3 py-2 rounded">🔄 全面更新</button>
+
+<button onclick="imageUpload.click()" class="bg-blue-500 px-3 py-2 rounded">📸 掃描</button>
+<input type="file" id="imageUpload" class="hidden" onchange="handleImageUpload(event)">
+</div>
 
 <input id="search" placeholder="搜尋..." class="w-full mt-2 p-2 bg-gray-800 rounded">
 </header>
@@ -27,86 +45,135 @@ body { background:#000; color:#fff; }
 
 <script>
 
-// ====== 測試用資料 ======
 let stocks = JSON.parse(localStorage.getItem('stocks')) || [
 {ticker:"NVDA", name:"NVIDIA", category:"AI", price:900, change:1.2, news:"-", advice:"AI龍頭"}
 ];
 
-// ====== 儲存 ======
+// ===== 固定假資料生成（穩定）=====
+function generateStableData(ticker){
+let base = ticker.charCodeAt(0);
+return {
+price: (base * 3.21).toFixed(2),
+change: (base % 5).toFixed(2),
+news: ticker + " 最新新聞",
+advice: "觀察 " + ticker
+};
+}
+
+// ===== 儲存 =====
 function save(){
 localStorage.setItem('stocks', JSON.stringify(stocks));
 render();
 }
 
-// ====== 畫面 ======
+// ===== UI =====
 function render(data = stocks){
+
 let html = "";
 
 data.forEach((s,i)=>{
-html += `
-<div class="card">
 
-<div class="flex justify-between">
-<div>
+html += `
+<div class="scroll-x">
+
+<!-- 左：基本資訊 -->
+<div class="card">
 <div class="text-green-400 text-xs">${s.category}</div>
 <div class="text-xl">${s.ticker}</div>
 <div class="text-gray-400 text-sm">${s.name}</div>
-</div>
 
-<div class="text-right">
+<div class="mt-2">
 <div>${s.price}</div>
 <div>${s.change}%</div>
 </div>
 </div>
 
-<div class="text-xs mt-2">📰 ${s.news}</div>
-<div class="text-xs">🤖 ${s.advice}</div>
+<!-- 右：詳細資訊 -->
+<div class="card">
+<div class="text-xs">📰 ${s.news}</div>
+<div class="text-xs mt-1">🤖 ${s.advice}</div>
 
 <div class="flex gap-2 mt-2">
 <button onclick="updateStock(${i})" class="bg-blue-500 px-2 py-1 rounded text-xs">更新</button>
 <button onclick="deleteStock(${i})" class="bg-red-500 px-2 py-1 rounded text-xs">刪除</button>
 </div>
+</div>
 
 </div>
 `;
+
 });
 
 document.getElementById("list").innerHTML = html;
 }
 
-// ====== 刪除 ======
+// ===== 刪除 =====
 function deleteStock(i){
 stocks.splice(i,1);
 save();
 }
 
-// ====== 單筆更新（先用假資料） ======
-async function updateStock(i){
+// ===== 單筆更新（穩定資料）=====
+function updateStock(i){
+let s = stocks[i];
+let d = generateStableData(s.ticker);
 
-// 模擬API（避免你現在壞掉）
-stocks[i].price = (Math.random()*1000).toFixed(2);
-stocks[i].change = (Math.random()*5).toFixed(2);
-stocks[i].news = "最新新聞測試";
-stocks[i].advice = "短線觀察";
+s.price = d.price;
+s.change = d.change;
+s.news = d.news;
+s.advice = d.advice;
 
 save();
 }
 
-// ====== 全部更新 ======
+// ===== 全部更新 =====
 async function updateAllStocks(){
 for(let i=0;i<stocks.length;i++){
-await updateStock(i);
+updateStock(i);
 }
-alert("更新完成");
+alert("全部更新完成");
 }
 
-// ====== 搜尋 ======
+// ===== OCR 掃描 =====
+async function handleImageUpload(e){
+
+const file = e.target.files[0];
+if(!file) return;
+
+const worker = await Tesseract.createWorker('eng');
+const { data:{ text } } = await worker.recognize(file);
+
+text.split('\n').forEach(line=>{
+let m = line.match(/([A-Z0-9]{2,6})/);
+if(m){
+let ticker = m[1];
+
+// 防止重複
+if(!stocks.find(s=>s.ticker === ticker)){
+stocks.unshift({
+ticker,
+name:"掃描新增",
+category:"OCR",
+price:0,
+change:0,
+news:"",
+advice:""
+});
+}
+}
+});
+
+await worker.terminate();
+save();
+}
+
+// ===== 搜尋 =====
 document.getElementById("search").addEventListener("input", e=>{
 let t = e.target.value.toUpperCase();
 render(stocks.filter(s=>s.ticker.includes(t)));
 });
 
-// ====== 啟動 ======
+// ===== 啟動 =====
 render();
 
 </script>
