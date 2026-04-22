@@ -4,28 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>投資大師 v4（專業表格版）</title>
+<title>投資大師 v5（Excel專業版）</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
 
 <style>
-body { background:#000; color:#fff; font-size:14px; }
+body { background:#000; color:#fff; font-size:13px; }
 
+/* 整體可橫向滑 */
 .table-wrap {
   overflow-x:auto;
 }
 
+/* 每列 */
 .row {
   display:flex;
   border-bottom:1px solid #333;
-  min-width:900px;
+  min-width:1600px;
 }
 
+/* 每格 */
 .cell {
-  padding:8px;
+  padding:6px;
   min-width:100px;
   white-space:nowrap;
+  overflow:hidden;
+}
+
+/* 長內容欄位 */
+.long-cell {
+  min-width:300px;
+  max-width:400px;
+  overflow-x:auto;
+  white-space:nowrap;
+  color:#ccc;
+}
+
+/* 表頭 */
+.header {
+  background:#111;
+  font-weight:bold;
 }
 </style>
 </head>
@@ -48,15 +67,15 @@ body { background:#000; color:#fff; font-size:14px; }
 <div class="table-wrap">
 
 <!-- 表頭 -->
-<div class="row bg-gray-900 text-xs font-bold">
+<div class="row header">
 <div class="cell">分類</div>
 <div class="cell">代號</div>
 <div class="cell">名稱</div>
 <div class="cell">價格</div>
 <div class="cell">漲跌%</div>
-<div class="cell">新聞</div>
-<div class="cell">財報</div>
-<div class="cell">建議</div>
+<div class="cell long-cell">最新新聞</div>
+<div class="cell long-cell">最新財報</div>
+<div class="cell long-cell">投資建議</div>
 <div class="cell">操作</div>
 </div>
 
@@ -68,7 +87,16 @@ body { background:#000; color:#fff; font-size:14px; }
 <script>
 
 let stocks = JSON.parse(localStorage.getItem('stocks')) || [
-{ticker:"NVDA", name:"NVIDIA", category:"AI", price:900, change:1.2, news:"-", financials:"-", advice:"AI龍頭"}
+{
+ticker:"NVDA",
+name:"NVIDIA",
+category:"AI",
+price:900,
+change:1.2,
+news:"這是一段測試新聞內容，可以放很多很多字...",
+financials:"這是一段財報內容，可以放200字以上...",
+advice:"這是一段投資建議內容..."
+}
 ];
 
 // ===== 儲存 =====
@@ -93,9 +121,9 @@ html += `
 <div class="cell">${s.price}</div>
 <div class="cell">${s.change}%</div>
 
-<div class="cell">${s.news || "-"}</div>
-<div class="cell">${s.financials || "-"}</div>
-<div class="cell">${s.advice || "-"}</div>
+<div class="cell long-cell">${s.news || "-"}</div>
+<div class="cell long-cell">${s.financials || "-"}</div>
+<div class="cell long-cell">${s.advice || "-"}</div>
 
 <div class="cell flex gap-1">
 <button onclick="updateStock(${i})" class="bg-blue-500 px-2 rounded text-xs">更</button>
@@ -116,15 +144,13 @@ stocks.splice(i,1);
 save();
 }
 
-// ===== 更新（不亂動價格）=====
+// ===== 更新（不動價格）=====
 function updateStock(i){
-
 let s = stocks[i];
 
-// 只更新資訊（不動價格）
-s.news = "最新新聞：" + s.ticker;
-s.financials = "財報更新";
-s.advice = "短線觀察";
+s.news = "最新新聞：" + s.ticker + "（可放長內容）";
+s.financials = "財報更新（可放200~400字）";
+s.advice = "短線觀察 / 中長線策略";
 
 save();
 }
@@ -132,7 +158,7 @@ save();
 // ===== 全部更新 =====
 function updateAllStocks(){
 stocks.forEach((_,i)=>updateStock(i));
-alert("更新完成（未更新股價）");
+alert("更新完成");
 }
 
 // ===== OCR =====
