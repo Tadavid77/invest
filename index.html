@@ -3,62 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>投資大師 v3</title>
+
+<title>投資大師 v4（專業表格版）</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
 
 <style>
-body { background:#000; color:#fff; }
+body { background:#000; color:#fff; font-size:14px; }
 
-.scroll-x {
-  display:flex;
+.table-wrap {
   overflow-x:auto;
-  gap:10px;
 }
 
-.card {
-  min-width:280px;
-  background:#1c1c1e;
-  padding:12px;
-  border-radius:12px;
+.row {
+  display:flex;
+  border-bottom:1px solid #333;
+  min-width:900px;
+}
+
+.cell {
+  padding:8px;
+  min-width:100px;
+  white-space:nowrap;
 }
 </style>
 </head>
 
 <body>
 
-<header class="p-4">
-<h1 class="text-2xl text-emerald-400">投資大師</h1>
+<header class="p-3">
+<h1 class="text-xl text-emerald-400">投資大師</h1>
 
 <div class="flex gap-2 mt-2">
-<button onclick="updateAllStocks()" class="bg-yellow-500 px-3 py-2 rounded">🔄 全面更新</button>
+<button onclick="updateAllStocks()" class="bg-yellow-500 px-3 py-1 rounded text-sm">🔄 全部更新</button>
 
-<button onclick="imageUpload.click()" class="bg-blue-500 px-3 py-2 rounded">📸 掃描</button>
+<button onclick="imageUpload.click()" class="bg-blue-500 px-3 py-1 rounded text-sm">📸 掃描</button>
 <input type="file" id="imageUpload" class="hidden" onchange="handleImageUpload(event)">
 </div>
 
-<input id="search" placeholder="搜尋..." class="w-full mt-2 p-2 bg-gray-800 rounded">
+<input id="search" placeholder="搜尋..." class="w-full mt-2 p-2 bg-gray-800 rounded text-sm">
 </header>
 
-<main id="list" class="p-4"></main>
+<div class="table-wrap">
+
+<!-- 表頭 -->
+<div class="row bg-gray-900 text-xs font-bold">
+<div class="cell">分類</div>
+<div class="cell">代號</div>
+<div class="cell">名稱</div>
+<div class="cell">價格</div>
+<div class="cell">漲跌%</div>
+<div class="cell">新聞</div>
+<div class="cell">財報</div>
+<div class="cell">建議</div>
+<div class="cell">操作</div>
+</div>
+
+<!-- 資料 -->
+<div id="list"></div>
+
+</div>
 
 <script>
 
 let stocks = JSON.parse(localStorage.getItem('stocks')) || [
-{ticker:"NVDA", name:"NVIDIA", category:"AI", price:900, change:1.2, news:"-", advice:"AI龍頭"}
+{ticker:"NVDA", name:"NVIDIA", category:"AI", price:900, change:1.2, news:"-", financials:"-", advice:"AI龍頭"}
 ];
-
-// ===== 固定假資料生成（穩定）=====
-function generateStableData(ticker){
-let base = ticker.charCodeAt(0);
-return {
-price: (base * 3.21).toFixed(2),
-change: (base % 5).toFixed(2),
-news: ticker + " 最新新聞",
-advice: "觀察 " + ticker
-};
-}
 
 // ===== 儲存 =====
 function save(){
@@ -74,29 +85,21 @@ let html = "";
 data.forEach((s,i)=>{
 
 html += `
-<div class="scroll-x">
+<div class="row">
 
-<!-- 左：基本資訊 -->
-<div class="card">
-<div class="text-green-400 text-xs">${s.category}</div>
-<div class="text-xl">${s.ticker}</div>
-<div class="text-gray-400 text-sm">${s.name}</div>
+<div class="cell">${s.category}</div>
+<div class="cell font-bold">${s.ticker}</div>
+<div class="cell">${s.name}</div>
+<div class="cell">${s.price}</div>
+<div class="cell">${s.change}%</div>
 
-<div class="mt-2">
-<div>${s.price}</div>
-<div>${s.change}%</div>
-</div>
-</div>
+<div class="cell">${s.news || "-"}</div>
+<div class="cell">${s.financials || "-"}</div>
+<div class="cell">${s.advice || "-"}</div>
 
-<!-- 右：詳細資訊 -->
-<div class="card">
-<div class="text-xs">📰 ${s.news}</div>
-<div class="text-xs mt-1">🤖 ${s.advice}</div>
-
-<div class="flex gap-2 mt-2">
-<button onclick="updateStock(${i})" class="bg-blue-500 px-2 py-1 rounded text-xs">更新</button>
-<button onclick="deleteStock(${i})" class="bg-red-500 px-2 py-1 rounded text-xs">刪除</button>
-</div>
+<div class="cell flex gap-1">
+<button onclick="updateStock(${i})" class="bg-blue-500 px-2 rounded text-xs">更</button>
+<button onclick="deleteStock(${i})" class="bg-red-500 px-2 rounded text-xs">刪</button>
 </div>
 
 </div>
@@ -113,28 +116,26 @@ stocks.splice(i,1);
 save();
 }
 
-// ===== 單筆更新（穩定資料）=====
+// ===== 更新（不亂動價格）=====
 function updateStock(i){
-let s = stocks[i];
-let d = generateStableData(s.ticker);
 
-s.price = d.price;
-s.change = d.change;
-s.news = d.news;
-s.advice = d.advice;
+let s = stocks[i];
+
+// 只更新資訊（不動價格）
+s.news = "最新新聞：" + s.ticker;
+s.financials = "財報更新";
+s.advice = "短線觀察";
 
 save();
 }
 
 // ===== 全部更新 =====
-async function updateAllStocks(){
-for(let i=0;i<stocks.length;i++){
-updateStock(i);
-}
-alert("全部更新完成");
+function updateAllStocks(){
+stocks.forEach((_,i)=>updateStock(i));
+alert("更新完成（未更新股價）");
 }
 
-// ===== OCR 掃描 =====
+// ===== OCR =====
 async function handleImageUpload(e){
 
 const file = e.target.files[0];
@@ -148,8 +149,7 @@ let m = line.match(/([A-Z0-9]{2,6})/);
 if(m){
 let ticker = m[1];
 
-// 防止重複
-if(!stocks.find(s=>s.ticker === ticker)){
+if(!stocks.find(s=>s.ticker===ticker)){
 stocks.unshift({
 ticker,
 name:"掃描新增",
@@ -157,6 +157,7 @@ category:"OCR",
 price:0,
 change:0,
 news:"",
+financials:"",
 advice:""
 });
 }
