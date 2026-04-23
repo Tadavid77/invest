@@ -10,25 +10,39 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
 
 <style>
+
+/* 🍎 iOS 安全區 */
+header {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 body { background:#000; color:#fff; font-size:13px; }
 
-/* 橫向滑動 */
 .table-wrap { overflow-x:auto; }
 
 /* 列 */
 .row {
   display:flex;
-  min-width:1700px;
+  min-width:1500px;
   border-bottom:1px solid #333;
 }
 
 /* 格 */
 .cell {
   padding:6px;
-  min-width:100px;
+  overflow:hidden;
 }
 
-/* 凍結代號欄 */
+/* 📐 壓縮欄位 */
+.ticker { min-width:80px; }
+.name { min-width:120px; }
+.cat { min-width:90px; }
+.price { min-width:90px; }
+.change { min-width:90px; }
+
+/* 凍結 */
 .sticky {
   position:sticky;
   left:0;
@@ -37,10 +51,10 @@ body { background:#000; color:#fff; font-size:13px; }
   border-right:2px solid #333;
 }
 
-/* 長文字 */
+/* 長內容 */
 .long {
-  min-width:300px;
-  max-width:400px;
+  min-width:280px;
+  max-width:380px;
   display:-webkit-box;
   -webkit-line-clamp:2;
   -webkit-box-orient:vertical;
@@ -49,7 +63,17 @@ body { background:#000; color:#fff; font-size:13px; }
   color:#aaa;
 }
 
-/* 漲跌色 */
+/* 👆 UX 提示 */
+.long:hover {
+  background: rgba(255,255,255,0.05);
+}
+.long::after {
+  content: " ...📎";
+  font-size: 10px;
+  color: #555;
+}
+
+/* 漲跌 */
 .up { color:#ff4d4f; }
 .down { color:#00c853; }
 
@@ -58,7 +82,7 @@ body { background:#000; color:#fff; font-size:13px; }
 position:fixed;
 top:0;left:0;
 width:100%;height:100%;
-background:rgba(0,0,0,0.8);
+background:rgba(0,0,0,0.85);
 display:none;
 align-items:center;
 justify-content:center;
@@ -70,6 +94,12 @@ max-width:90%;
 max-height:80%;
 overflow:auto;
 }
+
+button {
+min-height:44px;
+touch-action:manipulation;
+}
+
 </style>
 </head>
 
@@ -78,9 +108,11 @@ overflow:auto;
 <header class="p-3">
 <h1 class="text-emerald-400 text-xl">投資大師 Pro</h1>
 
-<div class="flex gap-2 mt-2">
+<div class="flex gap-2 mt-2 flex-wrap">
 <button onclick="updateAll()" class="bg-yellow-500 px-3 py-1 rounded">更新全部</button>
 <button onclick="upload.click()" class="bg-blue-500 px-3 py-1 rounded">OCR</button>
+<button onclick="exportToCSV()" class="bg-green-500 px-3 py-1 rounded">匯出</button>
+
 <input type="file" id="upload" class="hidden" onchange="ocr(event)">
 </div>
 
@@ -90,11 +122,11 @@ overflow:auto;
 <div class="table-wrap">
 
 <div class="row bg-gray-900">
-<div class="cell sticky">代號</div>
-<div class="cell">名稱</div>
-<div class="cell">分類</div>
-<div class="cell">價格</div>
-<div class="cell">漲跌%</div>
+<div class="cell ticker sticky">代號</div>
+<div class="cell name">名稱</div>
+<div class="cell cat">分類</div>
+<div class="cell price">價格</div>
+<div class="cell change">漲跌%</div>
 <div class="cell">新聞</div>
 <div class="cell">財報</div>
 <div class="cell">建議</div>
@@ -118,24 +150,39 @@ localStorage.setItem('stocks',JSON.stringify(stocks));
 render();
 }
 
+// ===== CSV =====
+function exportToCSV(){
+let csv = "\uFEFF代號,名稱,價格,漲跌,新聞,財報,建議\n";
+
+stocks.forEach(s=>{
+csv += `${s.ticker},${s.name},${s.price},${s.change},"${s.news||""}","${s.financials||""}","${s.advice||""}"\n`;
+});
+
+const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+const link = document.createElement("a");
+link.href = URL.createObjectURL(blob);
+link.download = "投資大師_"+Date.now()+".csv";
+link.click();
+}
+
 // ===== UI =====
-function render(){
+function render(data = stocks){
 
 let html="";
 
-stocks.forEach((s,i)=>{
+data.forEach((s,i)=>{
 
 let color = s.change>0 ? "up" : "down";
 
 html+=`
 <div class="row">
 
-<div class="cell sticky font-bold">${s.ticker}</div>
-<div class="cell">${s.name}</div>
-<div class="cell">${s.category}</div>
+<div class="cell ticker sticky font-bold">${s.ticker}</div>
+<div class="cell name">${s.name}</div>
+<div class="cell cat">${s.category}</div>
 
-<div class="cell ${color}">${s.price||"-"}</div>
-<div class="cell ${color}">${s.change||0}%</div>
+<div class="cell price ${color}">${s.price||"-"}</div>
+<div class="cell change ${color}">${s.change||0}%</div>
 
 <div class="cell long" onclick="show('${s.news||""}',${i},'news')">${s.news||"-"}</div>
 <div class="cell long" onclick="show('${s.financials||""}',${i},'fin')">${s.financials||"-"}</div>
@@ -148,7 +195,6 @@ html+=`
 
 </div>
 `;
-
 });
 
 document.getElementById("list").innerHTML=html;
@@ -163,7 +209,7 @@ document.getElementById("modalText").innerHTML = `
 <div>${text}</div>
 <hr>
 <h3>歷史紀錄</h3>
-${history.map(h=>`<div>${h}</div>`).join("")}
+${history.map(h=>`<div>${h||""}</div>`).join("")}
 `;
 
 document.getElementById("modal").style.display="flex";
@@ -183,7 +229,6 @@ if(!m) return;
 
 let ticker = m[0];
 
-// 白名單邏輯
 let exist = stocks.find(s=>s.ticker===ticker);
 
 if(!exist){
@@ -207,15 +252,13 @@ async function updateOne(i){
 
 let s = stocks[i];
 
-// 假資料（你之後會接API）
 s.price = (Math.random()*1000).toFixed(2);
 s.change = (Math.random()*10-5).toFixed(2);
 
-let news = "最新新聞 "+Date.now();
+let news = "新聞 "+Date.now();
 let fin = "財報 "+Date.now();
-let adv = "投資建議 "+Date.now();
+let adv = "建議 "+Date.now();
 
-// 歷史
 s.history = s.history || {news:[],fin:[],adv:[]};
 
 ["news","fin","adv"].forEach(k=>{
