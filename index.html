@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>投資大師 Pro</title>
+<title>投資大師 Pro MAX</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
 
 <style>
 
-/* 🍎 iOS 安全區 */
+/* iOS 安全區 */
 header {
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
@@ -22,20 +22,18 @@ body { background:#000; color:#fff; font-size:13px; }
 
 .table-wrap { overflow-x:auto; }
 
-/* 列 */
 .row {
   display:flex;
   min-width:1500px;
   border-bottom:1px solid #333;
 }
 
-/* 格 */
 .cell {
   padding:6px;
   overflow:hidden;
 }
 
-/* 📐 壓縮欄位 */
+/* 壓縮欄位 */
 .ticker { min-width:80px; }
 .name { min-width:120px; }
 .cat { min-width:90px; }
@@ -51,7 +49,7 @@ body { background:#000; color:#fff; font-size:13px; }
   border-right:2px solid #333;
 }
 
-/* 長內容（升級版提示） */
+/* 長內容 */
 .long {
   min-width:280px;
   max-width:380px;
@@ -64,7 +62,6 @@ body { background:#000; color:#fff; font-size:13px; }
   text-decoration: underline dotted rgba(255,255,255,0.2);
 }
 
-/* 提示效果 */
 .long:hover {
   background: rgba(255,255,255,0.05);
 }
@@ -74,9 +71,15 @@ body { background:#000; color:#fff; font-size:13px; }
   color: #555;
 }
 
-/* 漲跌 */
+/* 漲跌顏色 + 強度 */
 .up { color:#ff4d4f; }
 .down { color:#00c853; }
+
+.bg-up-strong { background: rgba(255,77,79,0.25); }
+.bg-up { background: rgba(255,77,79,0.12); }
+
+.bg-down-strong { background: rgba(0,200,83,0.25); }
+.bg-down { background: rgba(0,200,83,0.12); }
 
 /* modal */
 .modal {
@@ -101,7 +104,6 @@ min-height:44px;
 touch-action:manipulation;
 }
 
-/* 無資料提示 */
 .empty {
 text-align:center;
 padding:20px;
@@ -114,11 +116,12 @@ color:#888;
 <body>
 
 <header class="p-3">
-<h1 class="text-emerald-400 text-xl">投資大師 Pro</h1>
+<h1 class="text-emerald-400 text-xl">投資大師 Pro MAX</h1>
 
 <div class="flex gap-2 mt-2 flex-wrap">
 <button onclick="updateAll()" class="bg-yellow-500 px-3 py-1 rounded">更新全部</button>
-<button onclick="upload.click()" class="bg-blue-500 px-3 py-1 rounded">OCR</button>
+
+<button id="ocrBtn" onclick="upload.click()" class="bg-blue-500 px-3 py-1 rounded">OCR</button>
 <button onclick="exportToCSV()" class="bg-green-500 px-3 py-1 rounded">匯出</button>
 
 <input type="file" id="upload" class="hidden" onchange="ocr(event)">
@@ -144,7 +147,6 @@ color:#888;
 <div id="list"></div>
 </div>
 
-<!-- Modal -->
 <div id="modal" class="modal" onclick="this.style.display='none'">
 <div class="modal-content" id="modalText"></div>
 </div>
@@ -158,9 +160,8 @@ localStorage.setItem('stocks',JSON.stringify(stocks));
 render();
 }
 
-// ===== CSV（最終修正版）=====
+// ===== CSV =====
 function exportToCSV(){
-
 let csv = "代號,名稱,價格,漲跌,新聞,財報,建議\n";
 
 stocks.forEach(s=>{
@@ -173,6 +174,17 @@ const link = document.createElement("a");
 link.href = URL.createObjectURL(blob);
 link.download = "投資大師_"+Date.now()+".csv";
 link.click();
+}
+
+// ===== 漲跌背景 =====
+function getBg(change){
+let c = parseFloat(change);
+
+if(c >= 3) return "bg-up-strong";
+if(c > 0) return "bg-up";
+if(c <= -3) return "bg-down-strong";
+if(c < 0) return "bg-down";
+return "";
 }
 
 // ===== UI =====
@@ -188,8 +200,10 @@ let html="";
 
 data.forEach((s,i)=>{
 
+let bg = getBg(s.change);
+
 html+=`
-<div class="row">
+<div class="row ${bg}">
 
 <div class="cell ticker sticky font-bold">${s.ticker}</div>
 <div class="cell name">${s.name}</div>
@@ -216,7 +230,6 @@ document.getElementById("list").innerHTML=html;
 
 // ===== modal =====
 function show(text,i,type){
-
 let history = stocks[i].history?.[type] || [];
 
 document.getElementById("modalText").innerHTML = `
@@ -229,23 +242,24 @@ ${history.map(h=>`<div>${h||""}</div>`).join("")}
 document.getElementById("modal").style.display="flex";
 }
 
-// ===== OCR =====
+// ===== OCR（含提示）=====
 async function ocr(e){
+
+const btn = document.getElementById("ocrBtn");
+btn.innerText = "⌛ 辨識中...";
+btn.disabled = true;
 
 const file = e.target.files[0];
 const worker = await Tesseract.createWorker('eng');
 const { data:{text} } = await worker.recognize(file);
 
 text.split("\n").forEach(line=>{
-
 let m = line.match(/[A-Z]{2,6}/);
 if(!m) return;
 
 let ticker = m[0];
 
-let exist = stocks.find(s=>s.ticker===ticker);
-
-if(!exist){
+if(!stocks.find(s=>s.ticker===ticker)){
 if(confirm(`新增 ${ticker}?`)){
 stocks.unshift({
 ticker,
@@ -258,6 +272,10 @@ history:{news:[],fin:[],adv:[]}
 });
 
 await worker.terminate();
+
+btn.innerText = "OCR";
+btn.disabled = false;
+
 save();
 }
 
@@ -303,7 +321,8 @@ save();
 // ===== 搜尋 =====
 document.getElementById("search").addEventListener("input",e=>{
 let t=e.target.value.toUpperCase();
-render(stocks.filter(s=>s.ticker.includes(t)));
+let filtered = stocks.filter(s=>s.ticker.includes(t));
+render(filtered);
 });
 
 render();
