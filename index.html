@@ -4,31 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>投資大師 PRO AI</title>
+<title>投資大師 Pro MAX</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
 
 <style>
-body {
-background:#0b0f14;
-color:#e6edf3;
-font-size:12px;
-}
+body { background:#0b0f14; color:#e6edf3; font-size:12px; }
 
-/* 橫向滑動 */
-.table-wrap {
-overflow-x:auto;
-}
+.table-wrap { overflow-x:auto; }
 
-/* 列 */
 .row {
 display:flex;
-min-width:900px;
+min-width:950px;
 border-bottom:1px solid #1f2937;
 }
 
-/* 欄位 */
 .cell {
 padding:4px 6px;
 white-space:nowrap;
@@ -53,25 +45,42 @@ z-index:10;
 border-right:1px solid #333;
 }
 
-/* 顏色 */
 .up { color:#22c55e; }
 .down { color:#ef4444; }
 
 .bg-up { background:rgba(34,197,94,0.08); }
 .bg-down { background:rgba(239,68,68,0.08); }
 
-/* header */
 .header-row {
 background:#020617;
 font-weight:bold;
 }
 
-/* 卡片 */
-.card {
-background:#020617;
-border:1px solid #1f2937;
-border-radius:8px;
-padding:10px;
+/* modal */
+.modal {
+position:fixed;
+top:0;left:0;
+width:100%;height:100%;
+background:rgba(0,0,0,0.85);
+display:none;
+align-items:center;
+justify-content:center;
+}
+
+.modal-content {
+background:#111;
+padding:15px;
+max-width:90%;
+max-height:80%;
+overflow:auto;
+}
+
+/* 長文字 */
+.long {
+min-width:220px;
+max-width:260px;
+cursor:pointer;
+text-decoration: underline dotted rgba(255,255,255,0.2);
 }
 
 </style>
@@ -79,15 +88,26 @@ padding:10px;
 
 <body>
 
-<header class="p-2">
-<h1 class="text-emerald-400 text-lg">投資大師 PRO AI</h1>
+<header class="p-2 text-center">
+<h1 class="text-emerald-400 text-lg font-bold">投資大師 Pro MAX</h1>
 
-<div class="flex gap-1 mt-1 flex-wrap">
-<button onclick="updateAll()" class="bg-yellow-500 px-2 py-1 rounded">更新</button>
+<div class="flex gap-1 mt-2 flex-wrap justify-center">
+
+<button onclick="updateAll()" class="bg-yellow-500 px-2 py-1 rounded">更新全部</button>
+
+<button id="ocrBtn" onclick="upload.click()" class="bg-blue-500 px-2 py-1 rounded">OCR</button>
+
 <button onclick="exportCSV()" class="bg-green-500 px-2 py-1 rounded">匯出</button>
+
+<button onclick="importCSV.click()" class="bg-purple-500 px-2 py-1 rounded">匯入CSV</button>
+
+<input type="file" id="upload" class="hidden" onchange="ocr(event)">
+<input type="file" id="importCSV" class="hidden" accept=".csv" onchange="importCsvFile(event)">
+
 </div>
 
-<input id="search" class="w-full mt-1 p-1 bg-gray-900 text-sm" placeholder="搜尋">
+<input id="search" class="w-full mt-2 p-1 bg-gray-900 text-sm" placeholder="搜尋">
+
 </header>
 
 <div class="table-wrap">
@@ -99,6 +119,9 @@ padding:10px;
 <div class="cell price">價</div>
 <div class="cell change">%</div>
 <div class="cell time">更新</div>
+<div class="cell">新聞</div>
+<div class="cell">財報</div>
+<div class="cell">建議</div>
 <div class="cell">操作</div>
 </div>
 
@@ -106,9 +129,14 @@ padding:10px;
 
 </div>
 
-<!-- Chart -->
-<div id="chartModal" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:#000c;">
-<div class="card" style="margin:10% auto; max-width:90%;">
+<!-- modal -->
+<div id="modal" class="modal" onclick="this.style.display='none'">
+<div class="modal-content" id="modalText"></div>
+</div>
+
+<!-- chart -->
+<div id="chartModal" class="modal">
+<div class="modal-content">
 <canvas id="chart"></canvas>
 </div>
 </div>
@@ -117,8 +145,7 @@ padding:10px;
 
 // ===== IndexedDB =====
 let db;
-
-const req = indexedDB.open("stockDB",1);
+let req = indexedDB.open("stockDB",1);
 
 req.onupgradeneeded = e=>{
 db = e.target.result;
@@ -130,7 +157,6 @@ db = e.target.result;
 loadStocks();
 };
 
-// ===== DB =====
 function saveStock(s){
 const tx = db.transaction("stocks","readwrite");
 tx.objectStore("stocks").put(s);
@@ -138,8 +164,7 @@ tx.objectStore("stocks").put(s);
 
 function loadStocks(){
 const tx = db.transaction("stocks","readonly");
-const store = tx.objectStore("stocks");
-const r = store.getAll();
+const r = tx.objectStore("stocks").getAll();
 
 r.onsuccess = ()=>{
 stocks = r.result || [];
@@ -166,7 +191,7 @@ async function updateOne(s){
 let d = await fetchPrice(s.ticker);
 s.price = d.price;
 s.change = d.change;
-s.updated = new Date().toLocaleTimeString();
+s.updated = new Date().toLocaleString();
 saveStock(s);
 render();
 }
@@ -177,12 +202,86 @@ await updateOne(s);
 }
 }
 
+// ===== OCR =====
+async function ocr(e){
+
+const btn=document.getElementById("ocrBtn");
+btn.innerText="⌛ 辨識中...";
+btn.disabled=true;
+
+const file=e.target.files[0];
+const worker=await Tesseract.createWorker('eng');
+const {data:{text}}=await worker.recognize(file);
+
+text.split("\n").forEach(line=>{
+let m=line.match(/([A-Z]{2,6})\s+([\d,.]+)/);
+if(m){
+let ticker=m[1];
+let price=m[2].replace(",","");
+let exist=stocks.find(s=>s.ticker===ticker);
+
+if(exist){
+exist.price=price;
+}else{
+stocks.unshift({
+ticker,
+name:"OCR",
+price,
+category:"OCR",
+updated:new Date().toLocaleString()
+});
+}
+}
+});
+
+await worker.terminate();
+
+btn.innerText="OCR";
+btn.disabled=false;
+
+render();
+}
+
+// ===== CSV =====
+function exportCSV(){
+let csv="代號,名稱,價格\n";
+stocks.forEach(s=>{
+csv+=`${s.ticker},${s.name},${s.price}\n`;
+});
+let blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8;'});
+let a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="stocks.csv";
+a.click();
+}
+
+function importCsvFile(e){
+const file=e.target.files[0];
+const reader=new FileReader();
+
+reader.onload=function(evt){
+let rows=evt.target.result.split("\n");
+rows.slice(1).forEach(r=>{
+let [ticker,name,price]=r.split(",");
+if(!ticker) return;
+
+stocks.unshift({
+ticker,name,price,
+category:"CSV",
+updated:new Date().toLocaleString()
+});
+});
+render();
+};
+
+reader.readAsText(file,"utf-8");
+}
+
 // ===== UI =====
 function render(data=stocks){
 
 if(data.length===0){
-document.getElementById("list").innerHTML =
-'<div style="padding:10px;color:#888;text-align:center;">查無資料</div>';
+document.getElementById("list").innerHTML='<div style="padding:10px;color:#888;text-align:center;">查無資料</div>';
 return;
 }
 
@@ -201,22 +300,25 @@ html+=`
 
 <div class="cell time">${s.updated||"-"}</div>
 
+<div class="cell long">${s.news||"-"}</div>
+<div class="cell long">${s.financials||"-"}</div>
+<div class="cell long">${s.advice||"-"}</div>
+
 <div class="cell">
 <button onclick="updateOne(stocks.find(x=>x.ticker=='${s.ticker}'))">更</button>
 <button onclick="showChart('${s.ticker}')">圖</button>
 </div>
 
-</div>
-`;
+</div>`;
 });
 
-document.getElementById("list").innerHTML = html;
+document.getElementById("list").innerHTML=html;
 }
 
-// ===== Chart =====
+// ===== chart =====
 function showChart(){
 
-let ctx = document.getElementById("chart").getContext("2d");
+let ctx=document.getElementById("chart").getContext("2d");
 
 new Chart(ctx,{
 type:'line',
@@ -226,23 +328,10 @@ datasets:[{data:[10,20,15,30,25]}]
 }
 });
 
-document.getElementById("chartModal").style.display="block";
+document.getElementById("chartModal").style.display="flex";
 }
 
-// ===== CSV =====
-function exportCSV(){
-let csv="ticker,price\n";
-stocks.forEach(s=>{
-csv+=`${s.ticker},${s.price}\n`;
-});
-let blob=new Blob(["\uFEFF"+csv]);
-let a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="stocks.csv";
-a.click();
-}
-
-// ===== 搜尋 =====
+// ===== search =====
 document.getElementById("search").addEventListener("input",e=>{
 let t=e.target.value.toUpperCase();
 render(stocks.filter(s=>s.ticker.includes(t)));
