@@ -51,7 +51,7 @@ body { background:#000; color:#fff; font-size:13px; }
   border-right:2px solid #333;
 }
 
-/* 長內容 */
+/* 長內容（升級版提示） */
 .long {
   min-width:280px;
   max-width:380px;
@@ -61,14 +61,15 @@ body { background:#000; color:#fff; font-size:13px; }
   overflow:hidden;
   cursor:pointer;
   color:#aaa;
+  text-decoration: underline dotted rgba(255,255,255,0.2);
 }
 
-/* 👆 UX 提示 */
+/* 提示效果 */
 .long:hover {
   background: rgba(255,255,255,0.05);
 }
 .long::after {
-  content: " ...📎";
+  content: " 🔍📎";
   font-size: 10px;
   color: #555;
 }
@@ -98,6 +99,13 @@ overflow:auto;
 button {
 min-height:44px;
 touch-action:manipulation;
+}
+
+/* 無資料提示 */
+.empty {
+text-align:center;
+padding:20px;
+color:#888;
 }
 
 </style>
@@ -150,15 +158,17 @@ localStorage.setItem('stocks',JSON.stringify(stocks));
 render();
 }
 
-// ===== CSV =====
+// ===== CSV（最終修正版）=====
 function exportToCSV(){
-let csv = "\uFEFF代號,名稱,價格,漲跌,新聞,財報,建議\n";
+
+let csv = "代號,名稱,價格,漲跌,新聞,財報,建議\n";
 
 stocks.forEach(s=>{
 csv += `${s.ticker},${s.name},${s.price},${s.change},"${s.news||""}","${s.financials||""}","${s.advice||""}"\n`;
 });
 
-const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+const blob = new Blob(["\uFEFF" + csv], { type:'text/csv;charset=utf-8;' });
+
 const link = document.createElement("a");
 link.href = URL.createObjectURL(blob);
 link.download = "投資大師_"+Date.now()+".csv";
@@ -168,11 +178,15 @@ link.click();
 // ===== UI =====
 function render(data = stocks){
 
+if(data.length === 0){
+document.getElementById("list").innerHTML =
+`<div class="empty">查無此標的</div>`;
+return;
+}
+
 let html="";
 
 data.forEach((s,i)=>{
-
-let color = s.change>0 ? "up" : "down";
 
 html+=`
 <div class="row">
@@ -181,8 +195,8 @@ html+=`
 <div class="cell name">${s.name}</div>
 <div class="cell cat">${s.category}</div>
 
-<div class="cell price ${color}">${s.price||"-"}</div>
-<div class="cell change ${color}">${s.change||0}%</div>
+<div class="cell price ${s.change >= 0 ? 'up' : 'down'}">${s.price||"-"}</div>
+<div class="cell change ${s.change >= 0 ? 'up' : 'down'}">${s.change||0}%</div>
 
 <div class="cell long" onclick="show('${s.news||""}',${i},'news')">${s.news||"-"}</div>
 <div class="cell long" onclick="show('${s.financials||""}',${i},'fin')">${s.financials||"-"}</div>
