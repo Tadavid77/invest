@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>投資大師 Pro MAX · 精準對齊版</title>
+  <title>投資大師 Pro MAX · 完美對齊版</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,149 +11,165 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
 
   <style>
-    body { background: #0b0f14; color: #e6edf3; font-size: 12px; }
-    .table-wrap { overflow-x: auto; }
-    .row {
-      display: flex;
-      min-width: 1650px; /* 配合新欄位寬度 */
-      border-bottom: 1px solid #1f2937;
-      align-items: stretch;
+    * { box-sizing: border-box; }
+    body { background: #0b0f14; color: #e6edf3; font-size: 12px; margin: 8px; }
+    
+    /* Grid 表格容器 */
+    .grid-table {
+      display: grid;
+      border: 1px solid #374151;
+      border-radius: 0;
+      overflow-x: auto;
     }
-    .cell {
-      padding: 4px 6px;
+    .grid-header, .grid-row {
+      display: contents;
+    }
+    .grid-header > div {
+      background: #020617;
+      font-weight: bold;
+      border-bottom: 2px solid #374151;
+      border-right: 1px solid #374151;
+      padding: 6px 4px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+    }
+    .grid-row > div {
+      border-bottom: 1px solid #1f2937;
+      border-right: 1px solid #1f2937;
+      padding: 4px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      border-right: 1px solid #1f2937;
-      line-height: 1.8;
-      display: block;
+      display: flex;
+      align-items: center;
     }
-    .cell:last-child { border-right: none; }
-    .header-row .cell {
-      font-weight: bold;
-      background: #020617;
-      border-right: 1px solid #374151;
-    }
-    .header-row .cell:last-child { border-right: none; }
+    .grid-row > div:last-child { border-right: none; }
+    .grid-header > div:last-child { border-right: none; }
     
-    /* 各欄位固定寬度 */
-    .ticker { min-width: 70px; font-weight: bold; }
-    .name { min-width: 150px; max-width: 150px; }
-    .cat { min-width: 100px; max-width: 100px; }
-    .price { min-width: 75px; text-align: right; }
-    .change { min-width: 70px; text-align: right; }
-    .open, .high, .low { min-width: 75px; text-align: right; }
-    .volume { min-width: 85px; text-align: right; }
-    .time { min-width: 100px; text-align: center; }
-    .news, .financials { min-width: 100px; text-align: center; }
-    .ops { min-width: 130px; display: flex; gap: 4px; align-items: center; justify-content: center; }
-    
-    .sticky {
+    /* 固定代號欄 */
+    .col-ticker {
       position: sticky;
       left: 0;
       background: #020617;
-      z-index: 10;
-      border-right: 2px solid #374151;
+      z-index: 5;
+      font-weight: bold;
+      border-right: 2px solid #374151 !important;
+    }
+    .grid-row .col-ticker { background: #0f172a; }
+    
+    /* 欄寬定義 (使用 grid-template-columns) */
+    .grid-table {
+      grid-template-columns: 70px 150px 100px 80px 80px 80px 80px 80px 90px 110px 100px 100px 140px;
     }
     
     .up { color: #22c55e; }
     .down { color: #ef4444; }
-    .bg-up { background: rgba(34,197,94,0.06); }
-    .bg-down { background: rgba(239,68,68,0.06); }
-    .invalid { color: #f87171; font-weight: bold; }
+    .bg-up { background: rgba(34,197,94,0.04); }
+    .bg-down { background: rgba(239,68,68,0.04); }
+    
+    .invalid { color: #f87171; }
+    
+    button {
+      transition: all 0.15s;
+      font-weight: 500;
+      border-radius: 4px;
+      font-size: 10px;
+      padding: 2px 6px;
+      line-height: 1.2;
+    }
+    button:active { transform: scale(0.96); }
     
     .modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100;
     }
     .modal-content {
-      background: #111; padding: 20px; max-width: 95%; max-height: 90%; overflow: auto;
+      background: #111; padding: 20px; max-width: 90%; max-height: 80%; overflow: auto;
       border-radius: 12px; border: 1px solid #2d3748;
     }
-    .progress-bar { height: 6px; background: #1e293b; border-radius: 10px; margin: 8px 0; }
-    .progress-fill { height: 6px; background: #3b82f6; border-radius: 10px; width: 0%; transition: width 0.2s; }
-    button { transition: all 0.15s; font-weight: 500; border-radius: 6px; }
-    button:active { transform: scale(0.96); }
+    .progress-bar { height: 4px; background: #1e293b; border-radius: 10px; margin: 8px 0; }
+    .progress-fill { height: 4px; background: #3b82f6; border-radius: 10px; width: 0%; }
   </style>
 </head>
 
-<body class="p-2">
+<body>
 
 <header class="mb-3">
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-black text-emerald-400">📈 投資大師 Pro MAX</h1>
-    <div class="flex items-center gap-3 text-sm">
-      <span id="apiStatus" class="px-2 py-1 bg-gray-800 rounded-full text-gray-400">⚪ 未設定 API</span>
-      <button onclick="toggleApiSettings()" class="bg-gray-700 px-3 py-1 rounded text-white text-xs">🔑 設定</button>
+  <div class="flex justify-between items-center">
+    <h1 class="text-emerald-400 text-xl font-bold">📈 投資大師 Pro MAX</h1>
+    <div class="flex items-center gap-2">
+      <span id="apiStatus" class="px-2 py-1 bg-gray-800 rounded-full text-xs">⚪ 未設定 API</span>
+      <button onclick="toggleApiSettings()" class="bg-gray-700 text-xs px-3 py-1 rounded">🔑 設定</button>
     </div>
   </div>
-
-  <div id="apiPanel" class="hidden mt-2 p-3 bg-gray-900 rounded-lg border border-gray-700">
-    <label class="block text-xs text-gray-400 mb-1">Finnhub API Key (免費註冊: finnhub.io)</label>
-    <div class="flex gap-2">
-      <input type="text" id="apiKeyInput" class="flex-1 bg-black border border-gray-600 p-2 rounded text-sm" placeholder="貼上你的 API Key" autocomplete="off">
-      <button onclick="saveApiKey()" class="bg-blue-600 px-4 py-2 rounded text-sm">儲存並測試</button>
+  
+  <div id="apiPanel" class="hidden mt-2 p-3 bg-gray-900 rounded border border-gray-700">
+    <label class="block text-xs text-gray-400">Finnhub API Key (免費註冊 finnhub.io)</label>
+    <div class="flex gap-2 mt-1">
+      <input id="apiKeyInput" class="flex-1 bg-black border border-gray-600 p-2 rounded text-sm" placeholder="貼上 API Key">
+      <button onclick="saveApiKey()" class="bg-blue-600 px-4 py-2 rounded text-sm">儲存</button>
     </div>
-    <p class="text-gray-500 text-xs mt-2">免費版每分鐘60次請求，建議清單不超過10檔。</p>
   </div>
-
+  
   <div class="flex flex-wrap gap-2 mt-3 items-center">
-    <button onclick="updateAll()" class="bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-1.5 rounded text-sm font-semibold">🔄 更新全部</button>
-    <button onclick="openAddStockModal()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded text-sm">➕ 新增股票</button>
-    <button onclick="document.getElementById('upload').click()" id="ocrBtn" class="bg-blue-500 hover:bg-blue-600 px-3 py-1.5 rounded text-sm">📷 OCR 匯入</button>
-    <button onclick="exportCSV()" class="bg-green-500 hover:bg-green-600 px-3 py-1.5 rounded text-sm">📤 匯出 CSV</button>
-    <button onclick="document.getElementById('importCSV').click()" class="bg-purple-500 hover:bg-purple-600 px-3 py-1.5 rounded text-sm">📥 匯入 CSV</button>
+    <button onclick="updateAll()" class="bg-yellow-500 text-black px-3 py-1 rounded text-sm font-semibold">🔄 更新全部</button>
+    <button onclick="openAddStockModal()" class="bg-indigo-500 text-white px-3 py-1 rounded text-sm">➕ 新增</button>
+    <button onclick="document.getElementById('upload').click()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">📷 OCR</button>
+    <button onclick="exportCSV()" class="bg-green-500 text-white px-3 py-1 rounded text-sm">📤 匯出</button>
+    <button onclick="document.getElementById('importCSV').click()" class="bg-purple-500 text-white px-3 py-1 rounded text-sm">📥 匯入</button>
     <input type="file" id="upload" class="hidden" accept="image/*" onchange="handleOCRUpload(event)">
     <input type="file" id="importCSV" class="hidden" accept=".csv" onchange="importCsvFile(event)">
-    <div class="flex-1"></div>
-    <input id="search" class="w-64 p-2 bg-gray-900 border border-gray-700 rounded text-sm" placeholder="🔍 搜尋代號...">
+    <input id="search" class="ml-auto w-48 p-2 bg-gray-900 border border-gray-700 rounded text-sm" placeholder="🔍 搜尋代號...">
   </div>
-
+  
   <div id="progressContainer" class="hidden mt-3">
     <div class="flex justify-between text-xs text-gray-400">
       <span id="progressText">更新中...</span>
       <span id="progressCount">0/0</span>
     </div>
-    <div class="progress-bar">
-      <div id="progressFill" class="progress-fill"></div>
-    </div>
+    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
   </div>
 </header>
 
-<div class="table-wrap border border-gray-800 rounded-lg">
-  <div class="row header-row text-gray-300">
-    <div class="cell ticker sticky">代號</div>
-    <div class="cell name">名稱</div>
-    <div class="cell cat">分類</div>
-    <div class="cell price">成交</div>
-    <div class="cell change">漲跌%</div>
-    <div class="cell open">開盤</div>
-    <div class="cell high">最高</div>
-    <div class="cell low">最低</div>
-    <div class="cell volume">成交量</div>
-    <div class="cell time">更新時間</div>
-    <div class="cell news">📰 新聞</div>
-    <div class="cell financials">📊 財報</div>
-    <div class="cell ops">⚡操作</div>
+<!-- Grid 表格 -->
+<div class="grid-table" id="stockTable">
+  <div class="grid-header">
+    <div class="col-ticker">代號</div>
+    <div>名稱</div>
+    <div>分類</div>
+    <div>成交</div>
+    <div>漲跌%</div>
+    <div>開盤</div>
+    <div>最高</div>
+    <div>最低</div>
+    <div>成交量</div>
+    <div>更新時間</div>
+    <div>新聞</div>
+    <div>財報</div>
+    <div>操作</div>
   </div>
-  <div id="list"></div>
+  <!-- 動態列由 JS 插入 -->
 </div>
 
+<!-- 通用模態框 -->
 <div id="modal" class="modal" onclick="this.style.display='none'">
   <div class="modal-content" id="modalText" onclick="event.stopPropagation()"></div>
 </div>
 
+<!-- K線圖模態框 -->
 <div id="chartModal" class="modal" onclick="this.style.display='none'">
   <div class="modal-content w-[1000px]" onclick="event.stopPropagation()">
-    <div class="flex justify-between items-center mb-2">
-      <h3 class="text-lg font-bold" id="chartTitle">歷史走勢</h3>
+    <div class="flex justify-between mb-2">
+      <h3 id="chartTitle" class="text-lg font-bold">K線圖</h3>
       <button onclick="document.getElementById('chartModal').style.display='none'" class="bg-gray-700 px-4 py-1 rounded">關閉</button>
     </div>
     <canvas id="chartCanvas" width="900" height="400"></canvas>
   </div>
 </div>
 
-<div id="addModal" class="modal">
+<!-- 新增股票對話框 -->
+<div id="addModal" class="modal" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal-content w-96" onclick="event.stopPropagation()">
     <h2 class="text-xl mb-4">➕ 新增觀察股</h2>
     <input id="newTicker" class="w-full p-2 mb-2 bg-gray-800 border border-gray-600 rounded" placeholder="代號 (如 AAPL)">
@@ -168,13 +184,14 @@
 
 <script>
   (function(){
+    // ---------- 全域變數 ----------
     let db;
     let stocks = [];
     let chartInstance = null;
     let apiKey = localStorage.getItem('finnhub_api_key') || '';
 
     // 工具函數
-    const isNumeric = (str) => /^\d+(\.\d+)?$/.test(str?.toString().trim() || '');
+    const isNumeric = (str) => /^[\d.]+$/.test(str?.toString().trim() || '');
     const isValidPrice = (val) => typeof val === 'number' && isFinite(val) && val > 0;
 
     function updateApiStatusUI() {
@@ -191,15 +208,17 @@
     if(apiKey) document.getElementById('apiKeyInput').value = apiKey;
 
     // IndexedDB
-    const dbReq = indexedDB.open("stockDB_v5", 5);
+    const dbReq = indexedDB.open("stockDB_clean", 1);
     dbReq.onupgradeneeded = (e) => {
       db = e.target.result;
       if (!db.objectStoreNames.contains('stocks')) {
         db.createObjectStore('stocks', { keyPath: 'ticker' });
       }
-      // 可選擇在此清除舊資料，但為保留使用者資料，不主動清除
     };
-    dbReq.onsuccess = (e) => { db = e.target.result; loadStocksFromDB(); };
+    dbReq.onsuccess = (e) => {
+      db = e.target.result;
+      loadStocksFromDB();
+    };
     dbReq.onerror = () => console.warn('IndexedDB 不可用');
 
     function loadStocksFromDB() {
@@ -208,10 +227,20 @@
       const req = tx.objectStore('stocks').getAll();
       req.onsuccess = () => {
         stocks = req.result || [];
+        // 清洗所有無效資料
+        stocks.forEach(s => {
+          if (isNumeric(s.name) || s.name === 'OCR' || s.name === 'CSV') s.name = '';
+          if (isNumeric(s.category)) s.category = '';
+          if (isNumeric(s.news)) s.news = '';
+          if (isNumeric(s.financials)) s.financials = '';
+        });
         if (stocks.length === 0) {
-          stocks.push({ ticker:'AAPL', name:'Apple Inc.', category:'科技', price:'-', change:0, open:'-', high:'-', low:'-', volume:'-', updated:'-', news:'點擊載入', financials:'點擊載入' });
+          stocks.push({ ticker:'AAPL', name:'Apple Inc.', category:'科技', price:'-', change:0, open:'-', high:'-', low:'-', volume:'-', updated:'-', news:'', financials:'' });
+          saveStockToDB(stocks[0]);
         }
         render();
+        // 有 API Key 時自動嘗試更新全體（可選）
+        // if (apiKey) updateAll();
       };
     }
 
@@ -227,7 +256,7 @@
       tx.objectStore('stocks').delete(ticker);
     }
 
-    // API 核心
+    // ---------- API 核心 ----------
     async function callFinnhub(endpoint, params = {}) {
       if (!apiKey) throw new Error('API_KEY_MISSING');
       const url = new URL(`https://finnhub.io/api/v1${endpoint}`);
@@ -238,7 +267,6 @@
       return await res.json();
     }
 
-    // 安全的報價檢查
     function validateQuote(data) {
       const c = Number(data.c);
       const h = Number(data.h);
@@ -246,7 +274,7 @@
       const o = Number(data.o);
       const dp = Number(data.dp);
       if (!isValidPrice(c) || !isValidPrice(h) || !isValidPrice(l) || !isValidPrice(o)) {
-        return null; // 報價無效
+        return null;
       }
       return {
         price: c.toFixed(2),
@@ -263,10 +291,7 @@
       try {
         const data = await callFinnhub('/quote', { symbol: ticker });
         return validateQuote(data);
-      } catch (e) {
-        console.warn(`${ticker} 報價失敗`, e);
-        return null;
-      }
+      } catch { return null; }
     }
 
     async function fetchVolume(ticker) {
@@ -288,9 +313,9 @@
       } catch { return null; }
     }
 
-    // 更新單一股票
-    async function updateStockData(stock, forceNameUpdate = true) {
-      // 取得報價
+    // ---------- 更新邏輯 ----------
+    async function updateStockData(stock, forceName = true) {
+      // 報價
       const quote = await fetchFullQuote(stock.ticker);
       if (quote) {
         stock.price = quote.price;
@@ -298,15 +323,13 @@
         stock.open = quote.open;
         stock.high = quote.high;
         stock.low = quote.low;
-        stock.pc = quote.pc;
+        stock.updated = new Date().toLocaleString();
       } else {
-        // 更新失敗，保留舊數值，但若之前無資料則設為 '-'
+        // 保留舊值，若全無則設 '-'
         if (!stock.price || stock.price === '-') {
           stock.price = '-'; stock.change = '0.00'; stock.open = '-'; stock.high = '-'; stock.low = '-';
         }
-        stock.updated = `⚠️ 更新失敗 (${new Date().toLocaleTimeString()})`;
-        saveStockToDB(stock);
-        return;
+        stock.updated = `⚠️ ${new Date().toLocaleTimeString()}`;
       }
 
       // 成交量
@@ -314,22 +337,21 @@
       if (vol !== null) stock.volume = vol;
       else if (!stock.volume || stock.volume === '-') stock.volume = '-';
 
-      // 強制更新名稱（若要求）
-      if (forceNameUpdate || !stock.name || isNumeric(stock.name) || stock.name === stock.ticker || stock.name === 'OCR' || stock.name === 'CSV') {
+      // 名稱
+      if (forceName || !stock.name || stock.name === stock.ticker || isNumeric(stock.name) || stock.name === 'OCR' || stock.name === 'CSV') {
         const realName = await fetchCompanyName(stock.ticker);
         if (realName) stock.name = realName;
+        else if (!stock.name || isNumeric(stock.name)) stock.name = stock.ticker; // 備用
       }
 
       // 分類清理
-      if (isNumeric(stock.category)) {
-        stock.category = '未分類';
+      if (isNumeric(stock.category) || stock.category === 'OCR' || stock.category === 'CSV') {
+        stock.category = '';
       }
 
-      stock.updated = new Date().toLocaleString();
       saveStockToDB(stock);
     }
 
-    // 全部更新
     async function updateAll() {
       if (stocks.length === 0) return;
       const progDiv = document.getElementById('progressContainer');
@@ -348,61 +370,61 @@
       });
       progText.innerText = '⏳ 平行更新中...';
       await Promise.allSettled(tasks);
-      progText.innerText = '✅ 更新完畢';
-      setTimeout(() => progDiv.classList.add('hidden'), 2500);
+      progText.innerText = '✅ 完成';
+      setTimeout(() => progDiv.classList.add('hidden'), 2000);
     }
 
     window.updateOne = async (ticker) => {
       const stock = stocks.find(s => s.ticker === ticker);
       if (!stock) return;
-      await updateStockData(stock, true);  // 單一更新時也強制更新名稱
+      await updateStockData(stock, true);
       render();
     };
 
     window.deleteStock = (ticker) => {
-      if (!confirm(`確定要刪除 ${ticker} 嗎？`)) return;
+      if (!confirm(`確定刪除 ${ticker}？`)) return;
       stocks = stocks.filter(s => s.ticker !== ticker);
       deleteStockFromDB(ticker);
       render();
     };
 
-    // 新聞 & 財報載入
-    async function loadNewsForStock(stock) {
-      if (!apiKey) { stock.news = '需API Key'; render(); return; }
+    // ---------- 新聞 / 財報 ----------
+    async function loadNews(stock) {
+      if (!apiKey) { stock.news = '需API'; saveStockToDB(stock); render(); return; }
       try {
         const from = new Date(Date.now() - 7*86400000).toISOString().split('T')[0];
         const to = new Date().toISOString().split('T')[0];
-        const news = await callFinnhub('/company-news', { symbol: stock.ticker, from, to });
-        stock.news = news?.length ? news.slice(0,3).map(n => n.headline).join(' || ') : '無近期新聞';
-      } catch { stock.news = '載入失敗'; }
+        const newsData = await callFinnhub('/company-news', { symbol: stock.ticker, from, to });
+        stock.news = newsData?.length ? newsData.slice(0,3).map(n => n.headline).join(' || ') : '無新聞';
+      } catch { stock.news = '失敗'; }
       saveStockToDB(stock);
       render();
     }
 
     async function loadFinancials(stock) {
-      if (!apiKey) { stock.financials = '需API Key'; render(); return; }
+      if (!apiKey) { stock.financials = '需API'; saveStockToDB(stock); render(); return; }
       try {
         const metric = await callFinnhub('/stock/metric', { symbol: stock.ticker });
         const pe = metric.metric?.peBasicExclExtraTTM || metric.metric?.peTTM || 'N/A';
-        stock.financials = `P/E: ${pe}`;
-      } catch { stock.financials = '載入失敗'; }
+        stock.financials = `P/E ${pe}`;
+      } catch { stock.financials = '失敗'; }
       saveStockToDB(stock);
       render();
     }
 
     window.handleNewsClick = (ticker) => {
       const stock = stocks.find(s => s.ticker === ticker);
-      if (stock) loadNewsForStock(stock);
+      if (stock) loadNews(stock);
     };
     window.handleFinancialClick = (ticker) => {
       const stock = stocks.find(s => s.ticker === ticker);
       if (stock) loadFinancials(stock);
     };
 
-    window.showDetailModal = (ticker, type) => {
+    window.showDetail = (ticker, type) => {
       const stock = stocks.find(s => s.ticker === ticker);
       if (!stock) return;
-      let content = type === 'news' ? (stock.news || '無新聞') : (stock.financials || '無財報');
+      const content = type === 'news' ? (stock.news || '無新聞') : (stock.financials || '無財報');
       document.getElementById('modalText').innerText = content;
       document.getElementById('modal').style.display = 'flex';
     };
@@ -412,7 +434,7 @@
       if (stock) alert(stock.updated);
     };
 
-    // K線圖
+    // ---------- K線圖 ----------
     window.showChart = async (ticker) => {
       if (!apiKey) { alert('請先設定 API Key'); return; }
       document.getElementById('chartTitle').innerText = `${ticker} 近30日K線`;
@@ -421,7 +443,7 @@
         const to = Math.floor(Date.now()/1000);
         const from = to - 30*86400;
         const data = await callFinnhub('/stock/candle', { symbol: ticker, resolution: 'D', from, to });
-        if (data.s !== 'ok') throw new Error('無歷史資料');
+        if (data.s !== 'ok') throw new Error('無資料');
         const ohlc = data.t.map((t, i) => ({
           x: t * 1000, o: data.o[i], h: data.h[i], l: data.l[i], c: data.c[i]
         }));
@@ -434,18 +456,18 @@
           }] },
           options: { responsive: true, maintainAspectRatio: true }
         });
-      } catch (e) { alert('圖表載入失敗: ' + e.message); }
+      } catch (e) { alert('圖表載入失敗'); }
     };
 
-    // 新增股票
+    // ---------- 新增股票 ----------
     window.openAddStockModal = () => document.getElementById('addModal').style.display = 'flex';
     window.addManualStock = async () => {
       const ticker = document.getElementById('newTicker').value.trim().toUpperCase();
       if (!ticker) return;
       const name = document.getElementById('newName').value.trim() || ticker;
-      const category = document.getElementById('newCategory').value.trim() || '未分類';
+      const category = document.getElementById('newCategory').value.trim() || '';
       if (stocks.find(s => s.ticker === ticker)) { alert('代號已存在'); return; }
-      const newStock = { ticker, name, category, price:'-', change:0, open:'-', high:'-', low:'-', volume:'-', updated:'-', news:'點擊載入', financials:'點擊載入' };
+      const newStock = { ticker, name, category, price:'-', change:0, open:'-', high:'-', low:'-', volume:'-', updated:'-', news:'', financials:'' };
       stocks.push(newStock);
       saveStockToDB(newStock);
       render();
@@ -454,98 +476,96 @@
       render();
     };
 
-    // 名稱縮短
-    function truncateName(name) {
-      if (!name || name === '-') return name;
-      return name.length > 20 ? name.substring(0, 18) + '…' : name;
-    }
-
-    // 渲染
+    // ---------- 渲染 (使用 Grid) ----------
     function render(filtered = stocks) {
-      // 清理無效新聞/財報
+      const table = document.getElementById('stockTable');
+      // 清除舊列（保留 header）
+      const rows = table.querySelectorAll('.grid-row');
+      rows.forEach(r => r.remove());
+
+      // 再次清洗
       filtered.forEach(s => {
-        if (isNumeric(s.news)) s.news = '點擊載入';
-        if (isNumeric(s.financials)) s.financials = '點擊載入';
+        if (isNumeric(s.name)) s.name = '';
+        if (isNumeric(s.category)) s.category = '';
+        if (isNumeric(s.news)) s.news = '';
+        if (isNumeric(s.financials)) s.financials = '';
       });
 
-      const sorted = [...filtered].sort((a, b) => {
+      // 排序：分類 > 代號
+      const sorted = [...filtered].sort((a,b) => {
         const catA = (a.category || '未分類').toString();
         const catB = (b.category || '未分類').toString();
         return catA.localeCompare(catB, 'zh-Hant') || a.ticker.localeCompare(b.ticker);
       });
 
-      const list = document.getElementById('list');
       if (sorted.length === 0) {
-        list.innerHTML = '<div class="p-4 text-center text-gray-500">尚無股票，請新增或匯入</div>';
+        table.innerHTML += '<div class="grid-row"><div style="grid-column:1/-1;text-align:center;padding:20px;color:#666;">尚無股票</div></div>';
         return;
       }
 
-      let html = '';
       sorted.forEach(s => {
         const changeVal = parseFloat(s.change);
         const changeClass = !isNaN(changeVal) && changeVal >= 0 ? 'up' : 'down';
 
-        // 名稱顯示
-        let nameDisplay = s.name || '無名稱';
-        if (isNumeric(nameDisplay)) nameDisplay = '無效名稱';
-        nameDisplay = truncateName(nameDisplay);
+        // 名稱縮短
+        let nameDisplay = s.name || s.ticker;
+        if (nameDisplay.length > 18) nameDisplay = nameDisplay.substring(0,16)+'…';
 
         // 分類顯示
         let catDisplay = s.category || '未分類';
-        if (isNumeric(catDisplay)) catDisplay = '未分類';
 
-        // 時間顯示
+        // 時間按鈕
         let timeHtml;
         const timeRaw = s.updated || '-';
-        if (timeRaw.startsWith('⚠️ 更新失敗')) {
-          timeHtml = `<button onclick="showFailTime('${s.ticker}')" class="bg-yellow-700 hover:bg-yellow-600 px-2 py-0.5 text-xs rounded w-full">⚠️</button>`;
+        if (timeRaw.startsWith('⚠️')) {
+          timeHtml = `<button onclick="showFailTime('${s.ticker}')" class="bg-yellow-700 text-white text-xs w-full">⚠️</button>`;
         } else {
-          timeHtml = timeRaw;
+          timeHtml = `<span class="text-xs text-gray-400">${timeRaw}</span>`;
         }
 
         // 新聞按鈕
         let newsHtml;
-        const news = s.news;
-        if (news === '點擊載入' || isNumeric(news)) {
-          newsHtml = `<button onclick="handleNewsClick('${s.ticker}')" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 text-xs rounded">載入</button>`;
-        } else if (news && news !== '無近期新聞' && news !== '載入失敗' && news !== '需API Key') {
-          newsHtml = `<button onclick="showDetailModal('${s.ticker}','news')" class="bg-yellow-700 hover:bg-yellow-600 px-2 py-0.5 text-xs rounded">⚠️</button>`;
+        if (!s.news || s.news === '點擊載入') {
+          newsHtml = `<button onclick="handleNewsClick('${s.ticker}')" class="bg-blue-700 text-white text-xs">載入</button>`;
+        } else if (s.news === '無新聞' || s.news === '需API' || s.news === '失敗') {
+          newsHtml = `<span class="text-gray-500 text-xs">${s.news}</span>`;
         } else {
-          newsHtml = `<span class="text-gray-500 text-xs">${news || '－'}</span>`;
+          newsHtml = `<button onclick="showDetail('${s.ticker}','news')" class="bg-yellow-700 text-white text-xs">⚠️</button>`;
         }
 
         // 財報按鈕
         let finHtml;
-        const fin = s.financials;
-        if (fin === '點擊載入' || isNumeric(fin)) {
-          finHtml = `<button onclick="handleFinancialClick('${s.ticker}')" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 text-xs rounded">載入</button>`;
-        } else if (fin && fin !== '需API Key' && fin !== '載入失敗') {
-          finHtml = `<button onclick="showDetailModal('${s.ticker}','financials')" class="bg-yellow-700 hover:bg-yellow-600 px-2 py-0.5 text-xs rounded">⚠️</button>`;
+        if (!s.financials || s.financials === '點擊載入') {
+          finHtml = `<button onclick="handleFinancialClick('${s.ticker}')" class="bg-blue-700 text-white text-xs">載入</button>`;
+        } else if (s.financials === '需API' || s.financials === '失敗') {
+          finHtml = `<span class="text-gray-500 text-xs">${s.financials}</span>`;
         } else {
-          finHtml = `<span class="text-gray-500 text-xs">${fin || '－'}</span>`;
+          finHtml = `<button onclick="showDetail('${s.ticker}','financials')" class="bg-yellow-700 text-white text-xs">⚠️</button>`;
         }
 
-        html += `<div class="row ${changeClass === 'up' ? 'bg-up' : 'bg-down'}">
-          <div class="cell ticker sticky">${s.ticker}</div>
-          <div class="cell name ${isNumeric(s.name) ? 'invalid' : ''}">${nameDisplay}</div>
-          <div class="cell cat ${isNumeric(s.category) ? 'invalid' : ''}">${catDisplay}</div>
-          <div class="cell price ${changeClass}">${s.price||'-'}</div>
-          <div class="cell change ${changeClass}">${s.change||'0'}%</div>
-          <div class="cell open">${s.open||'-'}</div>
-          <div class="cell high">${s.high||'-'}</div>
-          <div class="cell low">${s.low||'-'}</div>
-          <div class="cell volume">${s.volume||'-'}</div>
-          <div class="cell time">${timeHtml}</div>
-          <div class="cell news">${newsHtml}</div>
-          <div class="cell financials">${finHtml}</div>
-          <div class="cell ops">
-            <button onclick="updateOne('${s.ticker}')" class="bg-gray-600 hover:bg-gray-500 px-2 py-0.5 text-xs rounded">更</button>
-            <button onclick="showChart('${s.ticker}')" class="bg-gray-600 hover:bg-gray-500 px-2 py-0.5 text-xs rounded">圖</button>
-            <button onclick="deleteStock('${s.ticker}')" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 text-xs rounded">刪</button>
+        const row = document.createElement('div');
+        row.className = `grid-row ${changeClass === 'up' ? 'bg-up' : 'bg-down'}`;
+        row.innerHTML = `
+          <div class="col-ticker">${s.ticker}</div>
+          <div class="${!s.name || s.name===s.ticker ? 'invalid' : ''}">${nameDisplay}</div>
+          <div class="${catDisplay==='未分類' ? 'invalid' : ''}">${catDisplay}</div>
+          <div class="${changeClass}">${s.price||'-'}</div>
+          <div class="${changeClass}">${s.change||'0'}%</div>
+          <div>${s.open||'-'}</div>
+          <div>${s.high||'-'}</div>
+          <div>${s.low||'-'}</div>
+          <div>${s.volume||'-'}</div>
+          <div style="justify-content:center;">${timeHtml}</div>
+          <div style="justify-content:center;">${newsHtml}</div>
+          <div style="justify-content:center;">${finHtml}</div>
+          <div style="justify-content:center; gap:4px;">
+            <button onclick="updateOne('${s.ticker}')" class="bg-gray-600 text-xs">更</button>
+            <button onclick="showChart('${s.ticker}')" class="bg-gray-600 text-xs">圖</button>
+            <button onclick="deleteStock('${s.ticker}')" class="bg-red-700 text-xs">刪</button>
           </div>
-        </div>`;
+        `;
+        table.appendChild(row);
       });
-      list.innerHTML = html;
     }
     window.render = render;
 
@@ -567,7 +587,7 @@
       alert('API Key 已儲存');
     };
 
-    // CSV 匯出入
+    // CSV
     window.exportCSV = () => {
       let csv = "代號,名稱,分類,價格,漲跌%,開盤,最高,最低,成交量,更新時間\n";
       stocks.forEach(s => csv += `${s.ticker},${s.name},${s.category},${s.price},${s.change},${s.open},${s.high},${s.low},${s.volume},${s.updated}\n`);
@@ -585,25 +605,25 @@
       reader.onload = (evt) => {
         const rows = evt.target.result.split('\n').slice(1);
         rows.forEach(r => {
-          const parts = r.split(',');
-          if(parts.length < 3) return;
-          const ticker = parts[0].trim().toUpperCase();
+          const cols = r.split(',');
+          if(cols.length < 3) return;
+          const ticker = cols[0].trim().toUpperCase();
           if(!ticker) return;
           let stock = stocks.find(s=>s.ticker===ticker);
           if(!stock) {
-            stock = { ticker, name: parts[1], category: parts[2] || '未分類', news:'點擊載入', financials:'點擊載入', price:'-', change:0, open:'-', high:'-', low:'-', volume:'-', updated:'-' };
+            stock = { ticker, name: cols[1]||ticker, category: cols[2]||'', price:'-', change:0, open:'-', high:'-', low:'-', volume:'-', updated:'-', news:'', financials:'' };
             stocks.push(stock);
           } else {
-            if (parts[1] && !isNumeric(parts[1])) stock.name = parts[1];
-            if (parts[2] && !isNumeric(parts[2])) stock.category = parts[2];
+            if (cols[1] && !isNumeric(cols[1])) stock.name = cols[1];
+            if (cols[2] && !isNumeric(cols[2])) stock.category = cols[2];
           }
-          stock.price = parts[3] || stock.price;
-          stock.change = parts[4] || 0;
-          stock.open = parts[5] || '-';
-          stock.high = parts[6] || '-';
-          stock.low = parts[7] || '-';
-          stock.volume = parts[8] || '-';
-          stock.updated = parts[9] || new Date().toLocaleString();
+          stock.price = cols[3] || stock.price;
+          stock.change = cols[4] || 0;
+          stock.open = cols[5] || '-';
+          stock.high = cols[6] || '-';
+          stock.low = cols[7] || '-';
+          stock.volume = cols[8] || '-';
+          stock.updated = cols[9] || new Date().toLocaleString();
           saveStockToDB(stock);
         });
         render();
@@ -611,13 +631,38 @@
       reader.readAsText(file, 'utf-8');
     };
 
-    // OCR 保留基本功能
+    // OCR (保留基本)
     window.handleOCRUpload = async (e) => {
-      // ... 與之前相同，略 ...
+      const file = e.target.files[0];
+      if(!file) return;
+      const btn = document.querySelector('#upload + button');
+      btn.innerText = '辨識中...';
+      btn.disabled = true;
+      try {
+        const worker = await Tesseract.createWorker('eng');
+        const { data: { text } } = await worker.recognize(file);
+        await worker.terminate();
+        text.split('\n').forEach(line => {
+          const m = line.match(/([A-Z]{2,6})\s+([\d,.]+)/);
+          if(m){
+            const ticker = m[1];
+            const price = m[2].replace(',','');
+            let exist = stocks.find(s=>s.ticker===ticker);
+            if(exist) { exist.price = price; saveStockToDB(exist); }
+            else {
+              const newS = { ticker, name:'', price, category:'', updated:new Date().toLocaleString(), news:'', financials:'', change:0, open:'-', high:'-', low:'-', volume:'-' };
+              stocks.unshift(newS);
+              saveStockToDB(newS);
+            }
+          }
+        });
+        render();
+      } catch (ex) { alert('OCR失敗'); }
+      btn.innerText = 'OCR';
+      btn.disabled = false;
     };
 
     window.updateAll = updateAll;
-    // 若 db 未就緒，延遲載入
     if (!db) setTimeout(loadStocksFromDB, 500);
   })();
 </script>
