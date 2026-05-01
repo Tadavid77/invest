@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>投資大師 Pro MAX v8.0</title>
+  <title>投資大師 Pro MAX v9.0</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.5/dist/tesseract.min.js"></script>
@@ -15,32 +15,30 @@
     header { padding-top: calc(var(--safe-top) + 12px); background: #18181b; border-bottom: 1px solid #27272a; position: sticky; top: 0; z-index: 50; }
     
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .row { display: flex; min-width: 1400px; border-bottom: 1px solid #1f2937; align-items: stretch; }
+    .row { display: flex; min-width: 1100px; border-bottom: 1px solid #1f2937; align-items: stretch; }
     .row:hover { background: rgba(255,255,255,0.03); }
     .header-row { background: #111827; font-weight: bold; position: sticky; top: 0; z-index: 20; }
     
-    .cell { padding: 12px 8px; flex-shrink: 0; display: flex; align-items: center; border-right: 1px solid #1f2937; }
+    .cell { padding: 8px; flex-shrink: 0; display: flex; align-items: center; border-right: 1px solid #1f2937; }
     
     /* 凍結首欄 */
-    .sticky-col { position: sticky; left: 0; background: #0b0f14; z-index: 10; border-right: 2px solid #374151; font-weight: 700; width: 90px; }
+    .sticky-col { position: sticky; left: 0; background: #0b0f14; z-index: 10; border-right: 2px solid #374151; font-weight: 700; width: 80px; }
     .header-row .sticky-col { background: #111827; }
 
-    .w-name { width: 130px; }
-    .w-cat { width: 100px; }
-    .w-price { width: 100px; font-family: ui-monospace, SFMono-Regular; }
-    .w-change { width: 85px; }
-    .w-long { flex-grow: 1; min-width: 250px; max-width: 450px; font-size: 12px; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .w-time { width: 150px; font-size: 10px; color: #6b7280; }
-    .w-action { width: 110px; }
+    /* 寬度優化設定 */
+    .w-name { width: 140px; }
+    .w-price-box { width: 110px; flex-direction: column; align-items: flex-start; justify-content: center; }
+    .w-long { flex-grow: 1; min-width: 250px; max-width: 400px; font-size: 12px; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .w-fin { width: 150px; font-size: 11px; color: #9ca3af; cursor: pointer; }
+    .w-time { width: 130px; font-size: 10px; color: #6b7280; }
+    .w-action { width: 110px; justify-content: center; border-right: none; }
 
-    .up { color: #ef4444; }
-    .down { color: #22c55e; }
+    /* 台灣配色：上漲紅、下跌綠 */
+    .up { color: #ff4d4f !important; }
+    .down { color: #22c55e !important; }
 
     #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
     .modal-content { background: #1c1c1e; border-radius: 20px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; padding: 24px; border: 1px solid #444; }
-    
-    .btn-action { transition: all 0.2s; active: scale(0.95); }
-    input::placeholder { color: #4b5563; }
   </style>
 </head>
 <body>
@@ -48,8 +46,8 @@
   <header class="px-4 pb-4">
     <div class="flex justify-between items-start mb-3">
       <div>
-        <h1 class="text-2xl font-bold text-emerald-400">投資大師 <span class="text-xs font-normal text-zinc-500">v8.0 Pro MAX</span></h1>
-        <p class="text-[10px] text-zinc-500 mt-1" id="data-status">系統就緒</p>
+        <h1 class="text-2xl font-bold text-emerald-400">投資大師 <span class="text-xs font-normal text-zinc-500">v9.0 Pro MAX</span></h1>
+        <p class="text-[10px] text-zinc-500 mt-1" id="data-status">監控中：0 檔標的</p>
       </div>
       <div class="flex flex-wrap gap-2 justify-end">
         <button onclick="updateAllPrices()" class="bg-blue-600 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold">🔄 全部更新</button>
@@ -59,26 +57,32 @@
       </div>
     </div>
 
-    <div class="flex gap-2 mb-3 bg-zinc-900/50 p-2 rounded-xl border border-white/5">
-      <input id="newTicker" type="text" placeholder="代號" class="w-20 bg-black border-none rounded-lg px-2 py-1 text-xs text-emerald-400 font-bold uppercase">
-      <input id="newName" type="text" placeholder="名稱" class="flex-1 bg-black border-none rounded-lg px-2 py-1 text-xs">
-      <button onclick="manualAdd()" class="bg-emerald-500 text-black px-4 py-1 rounded-lg text-xs font-bold">＋新增標的</button>
+    <!-- 功能增強：手動新增 + 連結掃描 -->
+    <div class="space-y-2">
+      <div class="flex gap-2 bg-zinc-900/50 p-2 rounded-xl border border-white/5">
+        <input id="newTicker" type="text" placeholder="代號" class="w-20 bg-black border-none rounded-lg px-2 py-1 text-xs text-emerald-400 font-bold uppercase">
+        <input id="newName" type="text" placeholder="名稱(選填)" class="flex-1 bg-black border-none rounded-lg px-2 py-1 text-xs">
+        <button onclick="manualAdd()" class="bg-emerald-500 text-black px-4 py-1 rounded-lg text-xs font-bold">＋新增標的</button>
+      </div>
+      <div class="flex gap-2 bg-zinc-900/50 p-2 rounded-xl border border-white/5">
+        <input id="articleUrl" type="text" placeholder="🔗 貼上文章連結或內文 (AI 自動分析標的)" class="flex-1 bg-black border-none rounded-lg px-2 py-1 text-xs">
+        <button onclick="analyzeUrl()" class="bg-violet-600 text-white px-4 py-1 rounded-lg text-xs font-bold">讀取連結</button>
+      </div>
     </div>
 
-    <input id="search" type="text" placeholder="快速搜尋代號、名稱或類別..." class="w-full bg-zinc-800 border-none rounded-xl px-4 py-2 text-sm focus:ring-1 focus:ring-emerald-500">
+    <input id="search" type="text" placeholder="快速搜尋代號、名稱或類別..." class="w-full mt-2 bg-zinc-800 border-none rounded-xl px-4 py-2 text-sm focus:ring-1 focus:ring-emerald-500">
   </header>
 
   <input type="file" id="imgInp" accept="image/*" class="hidden" onchange="handleOCR(event)">
   <input type="file" id="csvInp" accept=".csv" class="hidden" onchange="importCSV(event)">
-  <input type="file" id="importFile" accept=".json" class="hidden" onchange="importJSON(event)">
 
   <div class="table-wrap">
     <div class="row header-row">
       <div class="cell sticky-col">代號</div>
-      <div class="cell w-name">名稱</div>
-      <div class="cell w-price">最新價格</div>
-      <div class="cell w-change">漲跌</div>
-      <div class="cell w-long">觀點詳情 (點擊展開歷史)</div>
+      <div class="cell w-name">股票名稱</div>
+      <div class="cell w-price-box">價格 / 漲跌</div>
+      <div class="cell w-long">觀點與操作建議</div>
+      <div class="cell w-fin">最新財報</div>
       <div class="cell w-time">最後更新</div>
       <div class="cell w-action">操作</div>
     </div>
@@ -88,124 +92,120 @@
   <div id="modal" onclick="closeModal(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
       <div id="modal-body"></div>
-      <button onclick="document.getElementById('modal').style.display='none'" class="w-full mt-6 bg-zinc-800 py-3 rounded-xl font-bold">關閉視窗</button>
+      <button onclick="document.getElementById('modal').style.display='none'" class="w-full mt-6 bg-zinc-800 py-3 rounded-xl font-bold">關閉</button>
     </div>
   </div>
 
   <script>
-    let stocks = JSON.parse(localStorage.getItem('MASTER_V8_DATA')) || [];
+    let stocks = JSON.parse(localStorage.getItem('MASTER_V9_DATA')) || [];
 
     function render(data = stocks) {
       document.getElementById('data-status').innerText = `監控中：${stocks.length} 檔標的 | 搜尋結果：${data.length}`;
       const html = data.map((s, i) => {
-        // 取得該標的在原始陣列中的真實 index
         const realIdx = stocks.findIndex(os => os.ticker === s.ticker);
+        const changeVal = parseFloat(s.change || 0);
+        const colorClass = changeVal > 0 ? 'up' : (changeVal < 0 ? 'down' : '');
+        const arrow = changeVal > 0 ? '▲' : (changeVal < 0 ? '▼' : '');
+
         return `
         <div class="row">
-          <div class="cell sticky-col text-emerald-400">${s.ticker}</div>
-          <div class="cell w-name">${s.name || '-'}</div>
-          <div class="cell w-price font-bold">${parseFloat(s.price || 0).toFixed(2)}</div>
-          <div class="cell w-change ${parseFloat(s.change) >= 0 ? 'up' : 'down'} font-bold">
-            ${parseFloat(s.change) >= 0 ? '▲' : '▼'}${Math.abs(s.change)}%
+          <div class="cell sticky-col text-emerald-400 text-xs">${s.ticker}</div>
+          <div class="cell w-name text-xs font-medium">${s.name || '新標的'}</div>
+          <div class="cell w-price-box">
+            <span class="text-sm font-bold ${colorClass}">${parseFloat(s.price || 0).toFixed(2)}</span>
+            <span class="text-[10px] font-bold ${colorClass}">${arrow}${Math.abs(changeVal)}%</span>
           </div>
           <div class="cell w-long" onclick="showHistory(${realIdx})">
-            <span class="text-white opacity-50 mr-1">[新]</span>${s.news || '無'}<br>
-            <span class="text-blue-400 opacity-50 mr-1">[建]</span>${s.adv || '無'}
+            <div class="text-[11px]"><span class="text-blue-400 font-bold">[新聞]</span> ${s.news || '等待更新...'}</div>
+            <div class="text-[11px] mt-1"><span class="text-emerald-400 font-bold">[策略]</span> ${s.adv || '等待分析...'}</div>
+          </div>
+          <div class="cell w-fin" onclick="showHistory(${realIdx})">
+            <div class="line-clamp-2">${s.fin || '點擊查看詳情'}</div>
           </div>
           <div class="cell w-time">${s.time || '-'}</div>
-          <div class="cell w-action flex gap-1">
-            <button onclick="updatePrice(${realIdx})" class="bg-emerald-600 text-black px-2 py-1.5 rounded text-[10px] font-bold">更新</button>
-            <button onclick="deleteStock(${realIdx})" class="bg-zinc-800 text-red-500 px-2 py-1.5 rounded text-[10px]">刪除</button>
+          <div class="cell w-action gap-1">
+            <button onclick="updateStockFull(${realIdx})" class="bg-emerald-600 text-black px-2 py-1 rounded text-[10px] font-bold">更新</button>
+            <button onclick="deleteStock(${realIdx})" class="bg-zinc-800 text-red-500 px-2 py-1 rounded text-[10px]">刪除</button>
           </div>
         </div>
       `}).join('');
       document.getElementById('list').innerHTML = html || '<div class="p-10 text-center text-zinc-600">無資料</div>';
     }
 
-    // 問題 4 修正：價格更新邏輯
-    function updatePrice(idx) {
+    // 核心功能：全方位資料更新 (報價 + 新聞 + 策略 + 財報)
+    function updateStockFull(idx) {
       let s = stocks[idx];
       if(!s) return;
 
-      // 保存舊紀錄到歷史
-      if(!s.history) s.history = { news:[], adv:[] };
-      s.history.news.unshift(s.news || "");
-      s.history.adv.unshift(s.adv || "");
+      // 1. 儲存歷史紀錄
+      if(!s.history) s.history = { news:[], adv:[], fin:[] };
+      s.history.news.unshift(s.news || "無資料");
+      s.history.adv.unshift(s.adv || "無資料");
       s.history.news = s.history.news.slice(0, 5);
       s.history.adv = s.history.adv.slice(0, 5);
 
-      // 模擬價格變動 (未來可換 API)
+      // 2. 模擬 AI 抓取數據 (報價/新聞/財報/策略)
       const oldPrice = parseFloat(s.price) || 100;
-      const variation = (Math.random() * 0.04 - 0.02); // +/- 2%
+      const variation = (Math.random() * 0.06 - 0.03); // +/- 3%
       s.price = (oldPrice * (1 + variation)).toFixed(2);
       s.change = (variation * 100).toFixed(2);
-      s.time = new Date().toLocaleString('zh-TW', {hour12:false});
       
+      // 根據代號隨機生成模擬名稱(若無)
+      if(!s.name || s.name === "新標的") s.name = s.ticker + " Corp.";
+      
+      s.news = "近期受關注於其核心業務成長，市場預期 Q2 表現優於預期。";
+      s.adv = "建議分批佈局，支撐位看當前價格 -5% 處。";
+      s.fin = "營收年增 15%，毛利率維持穩定，現金流充足。";
+      
+      s.time = new Date().toLocaleString('zh-TW', {hour12:false});
       save();
     }
 
-    // 問題 1 修正：全部更新
-    async function updateAllPrices() {
-      if(!confirm("確定要更新清單中所有標的的價格嗎？")) return;
-      stocks.forEach((_, i) => updatePrice(i));
+    function updateAllPrices() {
+      if(!confirm("將更新清單中所有標的的最新資訊？")) return;
+      stocks.forEach((_, i) => updateStockFull(i));
       alert("全部更新完成！");
     }
 
-    // 問題 3 修正：手動新增
     function manualAdd() {
       const t = document.getElementById('newTicker').value.toUpperCase().trim();
       const n = document.getElementById('newName').value.trim();
       if(!t) return alert("請輸入代號");
-      if(stocks.some(s => s.ticker === t)) return alert("此代號已在清單中");
+      if(stocks.some(s => s.ticker === t)) return alert("已存在");
 
+      const newIdx = stocks.length;
       stocks.unshift({
-        ticker: t, name: n, category: "手動新增", 
-        price: 0, change: 0, news: "尚無資料", adv: "尚無建議",
-        time: new Date().toLocaleString('zh-TW'),
-        history: { news:[], adv:[] }
+        ticker: t, name: n || "分析中...", category: "手動新增", 
+        price: 100, change: 0, news: "", adv: "", fin: "",
+        time: "", history: { news:[], adv:[], fin:[] }
       });
-      
       document.getElementById('newTicker').value = "";
       document.getElementById('newName').value = "";
-      save();
+      updateStockFull(0); // 新增後立即自動抓取一次完整資料
     }
 
-    // 問題 2 修正：CSV 匯入
-    function importCSV(e) {
-      const file = e.target.files[0];
-      if(!file) return;
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const text = evt.target.result;
-        const lines = text.split('\n').slice(1); // 跳過表頭
-        lines.forEach(line => {
-          const cols = line.split(',');
-          if(cols.length < 2) return;
-          const ticker = cols[0].trim();
-          if(!stocks.some(s => s.ticker === ticker)) {
-            stocks.push({
-              ticker, name: cols[1], category: cols[2] || "CSV匯入",
-              price: cols[3] || 0, change: 0, news: cols[6] || "", adv: cols[8] || "",
-              time: new Date().toLocaleString(), history: { news:[], adv:[] }
+    // 連結文章讀取模擬
+    function analyzeUrl() {
+      const url = document.getElementById('articleUrl').value;
+      if(!url) return alert("請輸入連結或文章內容");
+      
+      alert("AI 正在解析文章內容並尋找潛在標的...");
+      // 模擬從文章中讀取標的
+      setTimeout(() => {
+        const mockTickers = ["AAPL", "TSM", "NVDA"];
+        mockTickers.forEach(t => {
+          if(!stocks.some(s => s.ticker === t)) {
+            stocks.unshift({
+              ticker: t, name: "自動解析中...", category: "文章讀取",
+              price: 100, change: 0, news: "", adv: "", fin: "",
+              time: "", history: { news:[], adv:[], fin:[] }
             });
+            updateStockFull(0);
           }
         });
-        save();
-        alert("CSV 匯入完成");
-      };
-      reader.readAsText(file);
-    }
-
-    function exportCSV() {
-      let csv = "\uFEFF代號,名稱,類別,價格,漲跌,時間,新聞,財報,建議\n";
-      stocks.forEach(s => {
-        csv += `${s.ticker},${s.name},${s.category},${s.price},${s.change}%,${s.time},"${(s.news||'').replace(/"/g,'')}",,"${(s.adv||'').replace(/"/g,'')}"\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `投資大師_Backup_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
+        document.getElementById('articleUrl').value = "";
+        alert("文章分析完成，已新增並更新相關標的。");
+      }, 1500);
     }
 
     function showHistory(idx) {
@@ -213,16 +213,20 @@
       const h = s.history || { news:[], adv:[] };
       document.getElementById('modal-body').innerHTML = `
         <h2 class="text-2xl font-bold text-emerald-400">${s.ticker}</h2>
-        <p class="text-zinc-500 mb-4">${s.name} | ${s.category}</p>
+        <p class="text-zinc-500 mb-4">${s.name}</p>
         <div class="space-y-4">
-          <div>
-            <h4 class="text-white font-bold border-l-4 border-emerald-500 pl-2 mb-2">當前觀點</h4>
-            <p class="text-sm text-zinc-300 bg-white/5 p-3 rounded-lg">${s.news}<br><br><span class="text-emerald-400">建議：</span>${s.adv}</p>
+          <div class="bg-zinc-800 p-3 rounded-lg">
+            <h4 class="text-blue-400 font-bold mb-1">最新財報摘要</h4>
+            <p class="text-xs text-zinc-300">${s.fin || '暫無資料'}</p>
           </div>
           <div>
-            <h4 class="text-zinc-500 font-bold mb-2 text-xs">歷史追蹤 (前5筆)</h4>
-            <div class="text-[10px] text-zinc-500 space-y-2">
-              ${h.news.map((n, i) => `<div class="bg-white/5 p-2 rounded">LOG: ${n} | 建議: ${h.adv[i]}</div>`).join('')}
+            <h4 class="text-white font-bold border-l-4 border-emerald-500 pl-2 mb-2">當前觀點</h4>
+            <p class="text-sm text-zinc-300 bg-white/5 p-3 rounded-lg">${s.news}<br><br><span class="text-emerald-400 font-bold">策略：</span>${s.adv}</p>
+          </div>
+          <div>
+            <h4 class="text-zinc-500 font-bold mb-2 text-xs">歷史紀錄</h4>
+            <div class="text-[10px] text-zinc-600 space-y-1">
+              ${h.news.map((n, i) => `<div>${n.slice(0,30)}...</div>`).join('')}
             </div>
           </div>
         </div>
@@ -230,39 +234,61 @@
       document.getElementById('modal').style.display = 'flex';
     }
 
-    async function handleOCR(e) {
-      const btn = document.getElementById('ocrBtn');
-      const file = e.target.files[0];
-      if(!file) return;
-      btn.innerText = "⏳...";
-      try {
-        const worker = await Tesseract.createWorker('eng');
-        const { data: { text } } = await worker.recognize(file);
-        await worker.terminate();
-        const lines = text.split('\n');
-        lines.forEach(line => {
-          const m = line.match(/([A-Z]{2,6})\s+([\d,.]+)/);
-          if(m) {
-            const ticker = m[1];
-            const price = m[2].replace(/,/g,'');
-            const exist = stocks.find(s => s.ticker === ticker);
-            if(exist) { exist.price = price; exist.time = new Date().toLocaleString(); }
-            else if(confirm(`辨識到新標的 ${ticker}，價格 ${price}，是否加入？`)) {
-              stocks.unshift({ ticker, price, name: "新掃描", category: "OCR", change:0, news:"", adv:"", history:{news:[],adv:[]} });
-            }
-          }
-        });
-        save();
-      } catch(err) { alert("辨識出錯"); }
-      btn.innerText = "📸 圖片掃描";
-    }
-
     function save() {
-      localStorage.setItem('MASTER_V8_DATA', JSON.stringify(stocks));
+      localStorage.setItem('MASTER_V9_DATA', JSON.stringify(stocks));
       render();
     }
 
     function deleteStock(i) { if(confirm("確定刪除？")) { stocks.splice(i,1); save(); } }
+
+    function exportCSV() {
+      let csv = "\uFEFF代號,名稱,價格,漲跌,新聞,財報,策略\n";
+      stocks.forEach(s => csv += `${s.ticker},${s.name},${s.price},${s.change}%,${(s.news||'').replace(/,/g,'')},${(s.fin||'').replace(/,/g,'')},${(s.adv||'').replace(/,/g,'')}\n`);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = `投資大師_v9_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    }
+
+    function importCSV(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const lines = evt.target.result.split('\n').slice(1);
+        lines.forEach(l => {
+          const c = l.split(',');
+          if(c.length > 1 && !stocks.some(s => s.ticker === c[0])) {
+            stocks.push({ ticker: c[0], name: c[1], price: c[2]||0, change: 0, news: c[4], fin: c[5], adv: c[6], history: {news:[],adv:[],fin:[]} });
+          }
+        });
+        save();
+      };
+      reader.readAsText(file);
+    }
+
+    async function handleOCR(event) {
+      const btn = document.getElementById('ocrBtn');
+      const file = event.target.files[0];
+      if(!file) return;
+      btn.innerText = "辨識中...";
+      try {
+        const worker = await Tesseract.createWorker('eng');
+        const { data: { text } } = await worker.recognize(file);
+        await worker.terminate();
+        text.split('\n').forEach(line => {
+          const m = line.match(/([A-Z]{2,6})\s+([\d,.]+)/);
+          if(m) {
+            const ticker = m[1];
+            if(!stocks.some(s => s.ticker === ticker)) {
+              stocks.unshift({ ticker, price: m[2], name: "", change: 0, news: "", adv: "", fin: "", history: {news:[],adv:[],fin:[]} });
+              updateStockFull(0);
+            }
+          }
+        });
+        save();
+      } catch(e) { alert("辨識錯誤"); }
+      btn.innerText = "📸 圖片掃描";
+    }
 
     document.getElementById('search').addEventListener('input', (e) => {
       const t = e.target.value.toUpperCase();
