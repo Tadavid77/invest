@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股投資追蹤與AI分析工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v12.6</title>
+  <title>投資大師 Pro MAX v12.7</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -180,7 +180,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v12.6</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v12.7</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -360,7 +360,15 @@ window.saveKey=()=>{
 
 /* ═══════════ IndexedDB v2 ═══════════ */
 const JUNK_NM=new Set(['OCR','CSV','OCR掃描','掃描新增','新掃描','未知','未命名','undefined','null','']);
-const JUNK_CT=new Set(['OCR','CSV','OCR掃描','掃描新增','CSV匯入','undefined','null','']);
+/* 分類垃圾值：所有非真實行業分類的值一律清除，讓 API 重新取得 */
+const JUNK_CT=new Set([
+  /* 來源標記（舊版遺留） */
+  'OCR','CSV','OCR掃描','掃描新增','CSV匯入','新掃描',
+  /* 預設佔位符 */
+  '未分類','未知','未命名','其他','Other','N/A','NA',
+  /* 程式碼字串 */
+  'undefined','null','',
+]);
 
 const dbReq=indexedDB.open('stockDB_v2',1);
 dbReq.onupgradeneeded=e=>{
@@ -391,10 +399,19 @@ function sanitize(s){
   if(s.userCat===undefined)  s.userCat=false;
   if(s.prevClose===undefined)s.prevClose=0;
   if(s.prevVol  ===undefined)s.prevVol  =0;
+
   const nm=(s.name||'').trim();
   if(!nm||JUNK_NM.has(nm)||isNum(nm)||nm===s.ticker){s.name=s.ticker;s.needUpdate=true;}
+
+  /* 分類清洗：JUNK_CT 裡的值 + 純數字 → 全部清除，等 updateStock 從 API 補回
+     注意：userCat 一律重設為 false，確保 API 可以覆寫                          */
   const ct=(s.category||'').trim();
-  if(!ct||JUNK_CT.has(ct)||isNum(ct)||ct==='未分類'){s.category='未分類';s.userCat=false;s.needUpdate=true;}
+  if(!ct||JUNK_CT.has(ct)||isNum(ct)){
+    s.category='';       // 清空而非設為「未分類」，讓 render 顯示「取得中...」
+    s.userCat=false;
+    s.needUpdate=true;
+  }
+
   if(!isGood(Number(s.price)))s.price=0;
   return s;
 }
@@ -578,14 +595,26 @@ async function updateStock(s){
   /* ② 公司資料（名稱＋分類）每次強制呼叫 */
   const p=await fetchProfile(s.ticker);
   if(p){
+    /* 名稱：API 有值就覆寫 */
     if(p.name)s.name=p.name;
-    const keepUser=s.userCat&&s.category&&s.category!=='未分類'&&!JUNK_CT.has(s.category);
-    if(!keepUser){
+
+    /* 分類更新規則（重新設計，更嚴格）：
+       ✅ 保留：userCat=true 且 category 有真實值（不在垃圾清單、不是空值）
+       🔄 覆寫：其他所有情況，包含「未分類」、空值、任何垃圾值            */
+    const hasRealUserCat = s.userCat === true
+      && s.category
+      && s.category.trim() !== ''
+      && !JUNK_CT.has(s.category.trim());
+
+    if(!hasRealUserCat){
       const zh=toZhCat(p.industry);
-      s.category=zh||'未分類';
+      s.category = zh || '未分類';
+      s.userCat  = false;  // API 覆寫後，清除 userCat 標記
     }
   }else{
+    /* Profile API 失敗：清除垃圾名稱，分類保持原值（等下次更新） */
     if(!s.name||JUNK_NM.has(s.name)||s.name===s.ticker)s.name=s.ticker;
+    if(!s.category||JUNK_CT.has(s.category.trim()))s.category='未分類';
   }
   s.needUpdate=false;
   saveToDB(s);
@@ -637,10 +666,15 @@ window.manualAdd=async()=>{
   if(!ticker){toast('⚠️ 請輸入代號');return;}
   if(!/^[A-Z.\-]{1,10}$/.test(ticker)){toast('⚠️ 代號格式錯誤（英文1-10碼）');return;}
   if(stocks.find(s=>s.ticker===ticker)){toast(`⚠️ ${ticker} 已在清單中`);return;}
+
   const rawCt=document.getElementById('newCt').value.trim();
-  const s=mkStock(ticker,ticker,rawCt||'未分類');
-  s.userCat=(rawCt!=='');
-  stocks.push(s);saveToDB(s);render();  // ① render 更新 count
+  /* userCat=true 的唯一合法路徑：使用者在新增介面主動輸入分類
+     且輸入值不在垃圾清單，才標記保留；否則由 API 取得           */
+  const isUserInputCat = rawCt !== '' && !JUNK_CT.has(rawCt);
+  const s=mkStock(ticker,ticker, isUserInputCat ? rawCt : '');
+  s.userCat = isUserInputCat;
+
+  stocks.push(s);saveToDB(s);render();
   document.getElementById('newTk').value='';
   document.getElementById('newCt').value='';
   toast(`➕ 已新增 ${ticker}，正在取得資料...`);
@@ -806,20 +840,42 @@ window.importCSV=e=>{
       const ticker=(c[0]||'').toUpperCase();if(!ticker)return;
       let s=stocks.find(x=>x.ticker===ticker);
       if(!s){
-        const cat=c[2]||'未分類';s=mkStock(ticker,c[1]||ticker,cat);
-        s.userCat=(cat!==''&&cat!=='未分類');stocks.push(s);added++;
+        /* CSV 新增：name 從 CSV 取，category 一律清空讓 API 取得
+           （不設 userCat=true，確保 updateStock 能用 API 覆寫分類） */
+        s=mkStock(ticker,c[1]||ticker,'');
+        s.userCat=false;   // ← 關鍵：CSV 來源不標記 userCat
+        stocks.push(s);added++;
       }else{updated++;}
-      if(c[1])s.name=c[1];
-      if(c[2]&&c[2]!=='未分類'){s.category=c[2];s.userCat=true;}
-      s.price=parseFloat(c[3])||s.price;s.change=parseFloat(c[4])||s.change;
-      s.open=parseFloat(c[5])||s.open;s.high=parseFloat(c[6])||s.high;
-      s.low=parseFloat(c[7])||s.low;s.volume=parseFloat(c[8])||s.volume;
+
+      /* 名稱：CSV 有值就更新 */
+      if(c[1]&&c[1].trim())s.name=c[1].trim();
+
+      /* 分類：CSV 欄位的值只作「暫存」參考，不標記 userCat
+         讓 updateStock 呼叫 API 取得正確行業分類後覆寫
+         例外：若 CSV 分類欄是真實中文行業名稱（不在垃圾清單），
+               暫時存入，但仍讓 API 在下次更新時覆寫           */
+      const csvCat=(c[2]||'').trim();
+      if(csvCat && !JUNK_CT.has(csvCat)){
+        s.category=csvCat;
+        /* 不設 s.userCat=true，讓 updateStock 仍可用 API 覆寫 */
+      }else{
+        s.category='';   // 清空，等 API 補全
+      }
+      s.userCat=false;   // CSV 匯入一律不鎖定，讓 API 可覆寫
+
+      s.price  =parseFloat(c[3])||s.price;
+      s.change =parseFloat(c[4])||s.change;
+      s.open   =parseFloat(c[5])||s.open;
+      s.high   =parseFloat(c[6])||s.high;
+      s.low    =parseFloat(c[7])||s.low;
+      s.volume =parseFloat(c[8])||s.volume;
       if(c[9])s.updated=c[9];
       saveToDB(s);
     });
     render();
     toast(`📥 匯入：新增 ${added}，更新 ${updated} 筆`);
-    if(apiKey&&added>0)setTimeout(updateAll,500);
+    /* 匯入後立即更新，補全所有分類 */
+    if(apiKey)setTimeout(updateAll,500);
   };
   reader.readAsText(file,'UTF-8');e.target.value='';
 };
@@ -982,9 +1038,12 @@ function render(list){
     let volCls='vol-flat';
     if(pv>0&&curV>0){volCls=curV>pv?'vol-up':(curV<pv?'vol-dn':'vol-flat');}
 
+    const catOk=s.category&&s.category.trim()!==''&&s.category!=='未分類';
+    const catDisplay = catOk ? s.category : (s.needUpdate&&(!s.category||s.category.trim()==='') ? '取得中...' : '未分類');
+    const catColor   = catOk ? 'color:#e2e8f0;' : (s.needUpdate&&(!s.category||s.category.trim()==='') ? 'color:#6b7280;font-style:italic;' : 'color:#f87171;');
+
     const nm=(s.name||s.ticker).substring(0,18)+((s.name||'').length>18?'…':'');
     const nameIsTemp=(s.name||'')===s.ticker;
-    const catOk=s.category&&s.category!=='未分類';
 
     let tHtml;
     if((s.updated||'-').startsWith('⚠️')){
@@ -999,7 +1058,7 @@ function render(list){
       <div class="col-tk w-tk" style="color:#34d399;font-weight:700;font-size:13px;">${s.ticker}</div>
       <div class="w-nm" title="${(s.name||'').replace(/"/g,'&quot;')}"
            style="${nameIsTemp?'color:#fb923c;font-style:italic;':''}">${nm}</div>
-      <div class="w-ct" style="${catOk?'color:#e2e8f0;':'color:#f87171;'}font-size:12px;">${s.category||'未分類'}</div>
+      <div class="w-ct" style="${catColor}font-size:12px;">${catDisplay}</div>
       <div class="w-pr ${priceCls}" style="font-weight:700;">${f2(s.price)}</div>
       <div class="w-ch ${priceCls}" style="font-weight:700;">${cv>0?'+':''}${Math.abs(cv).toFixed(2)}%</div>
       <div class="w-oc ${ohlcCls(s.open)}">${f2(s.open)}</div>
