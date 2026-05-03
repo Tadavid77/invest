@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股投資追蹤與AI分析工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v12.5</title>
+  <title>投資大師 Pro MAX v12.6</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -180,7 +180,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v12.5</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v12.6</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -211,7 +211,7 @@
   </div>
 </header>
 
-<input type="file" id="imgInp" accept="image/*"   class="hidden" onchange="handleOCR(event)">
+<input type="file" id="imgInp" accept="image/*" multiple class="hidden" onchange="handleOCR(event)">
 <input type="file" id="csvInp" accept=".csv,.txt" class="hidden" onchange="importCSV(event)">
 
 <!-- ════ 主表格 ════ -->
@@ -836,28 +836,67 @@ window.exportCSV=()=>{
   a.click();toast('📤 匯出完成');
 };
 
-/* OCR */
+/* OCR — 支援多選最多 8 張圖片 */
 window.handleOCR=async event=>{
-  const file=event.target.files[0];if(!file)return;
+  const files=Array.from(event.target.files||[]).slice(0,8);
+  if(!files.length)return;
   const btn=document.getElementById('ocrBtn');
-  btn.innerHTML='<span class="spin"></span> 辨識中';btn.disabled=true;
+  btn.disabled=true;
+
+  const total=files.length;
+  let allMatched=0;
+  const allNewS=[];
+
   try{
+    /* 建立共用 Tesseract worker（不重複建立，提升速度） */
     const wk=await Tesseract.createWorker('eng');
-    const{data:{text}}=await wk.recognize(file);await wk.terminate();
-    const newS=[];let matched=0;
-    text.split('\n').forEach(line=>{
-      const m=line.match(/\b([A-Z]{2,6})\b.*?([\d,.]+)/);if(!m)return;
-      const ticker=m[1],price=parseFloat(m[2].replace(/,/g,''));
-      if(!price||isNaN(price))return;
-      let s=stocks.find(x=>x.ticker===ticker);
-      if(s){s.price=price;saveToDB(s);matched++;}
-      else{const ns=mkStock(ticker,ticker,'未分類');ns.price=price;ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});stocks.push(ns);saveToDB(ns);newS.push(ns);matched++;}
-    });
+
+    for(let i=0;i<files.length;i++){
+      btn.innerHTML=`<span class="spin"></span> 辨識 ${i+1}/${total}`;
+      try{
+        const{data:{text}}=await wk.recognize(files[i]);
+        let matched=0;
+        text.split('\n').forEach(line=>{
+          const m=line.match(/\b([A-Z]{2,6})\b.*?([\d,.]+)/);
+          if(!m)return;
+          const ticker=m[1],price=parseFloat(m[2].replace(/,/g,''));
+          if(!price||isNaN(price))return;
+          let s=stocks.find(x=>x.ticker===ticker);
+          if(s){s.price=price;saveToDB(s);matched++;}
+          else{
+            const ns=mkStock(ticker,ticker,'未分類');
+            ns.price=price;
+            ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
+            stocks.push(ns);saveToDB(ns);allNewS.push(ns);matched++;
+          }
+        });
+        allMatched+=matched;
+        render();
+        if(matched>0) toast(`第${i+1}張：識別 ${matched} 筆`);
+      }catch(imgErr){
+        console.warn(`第${i+1}張 OCR 失敗:`,imgErr);
+        toast(`⚠️ 第${i+1}張辨識失敗，繼續下一張`);
+      }
+    }
+
+    await wk.terminate();
     render();
-    toast(matched?`📸 OCR 識別 ${matched} 筆`:'📸 OCR 未識別到代號');
-    if(apiKey&&newS.length){for(const s of newS){await updateStock(s);render();}}
-  }catch{toast('❌ OCR 失敗，請重試');}
-  btn.innerText='📸 OCR';btn.disabled=false;event.target.value='';
+    toast(allMatched>0
+      ?`📸 ${total}張圖片共識別 ${allMatched} 筆資料`
+      :'📸 所有圖片均未識別到股票代號',3500);
+
+    /* 自動更新新增的股票，補全名稱和分類 */
+    if(apiKey&&allNewS.length){
+      for(const s of allNewS){await updateStock(s);render();}
+    }
+  }catch(e){
+    console.error('OCR 錯誤:',e);
+    toast('❌ OCR 初始化失敗，請重試');
+  }
+
+  btn.innerText='📸 OCR';
+  btn.disabled=false;
+  event.target.value='';
 };
 
 /* 搜尋 */
@@ -876,20 +915,37 @@ function mkBtn(label,bg,oc,color='white'){
 function mkMuted(txt){return`<span style="font-size:11px;color:#6b7280;">${txt}</span>`;}
 function mkSpin(){return`<span style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:3px;"><span class="spin"></span>讀取</span>`;}
 
+/* 新聞重試：把狀態清空後重新呼叫 loadNews */
+window.retryNews=t=>{
+  const s=stocks.find(x=>x.ticker===t);
+  if(!s)return;
+  s.news='';   // 清空狀態，讓按鈕恢復「載入」
+  handleNewsClick(t);
+};
+/* 財報重試：把狀態清空後重新呼叫 loadFin */
+window.retryFin=t=>{
+  const s=stocks.find(x=>x.ticker===t);
+  if(!s)return;
+  s.financials='';
+  handleFinClick(t);
+};
+
 function newsBtn(s){
   const t=s.ticker;
   if(!s.news||s.news==='')                      return mkBtn('載入','#1d4ed8',`handleNewsClick('${t}')`);
   if(s.news==='loading')                         return mkSpin();
   if(s.news==='loaded'&&s.newsItems?.length>0)  return mkBtn(`新聞${s.newsItems.length}`,'#15803d',`showDetail('${t}','news')`);
   if(s.news==='無近期新聞')                      return mkMuted('無新聞');
-  return mkMuted(s.news);
+  /* 載入失敗 / 需API / 其他錯誤 → 顯示橘色「重試」按鈕 */
+  return mkBtn('重試','#b45309',`retryNews('${t}')`);
 }
 function finBtn(s){
   const t=s.ticker;
   if(!s.financials||s.financials==='')          return mkBtn('載入','#1d4ed8',`handleFinClick('${t}')`);
   if(s.financials==='loading')                  return mkSpin();
   if(s.financials==='loaded')                   return mkBtn('財報','#15803d',`showDetail('${t}','financials')`);
-  return mkMuted(s.financials);
+  /* 載入失敗 / 需API / 其他錯誤 → 顯示橘色「重試」按鈕 */
+  return mkBtn('重試','#b45309',`retryFin('${t}')`);
 }
 
 /* ════════════════════════════════════════
