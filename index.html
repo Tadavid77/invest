@@ -8,10 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="投資大師">
   <meta name="theme-color" content="#34d399">
-  <meta name="description" content="專業美股投資追蹤與AI分析工具 — CFP專業版">
+  <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v12.7</title>
+  <title>投資大師 Pro MAX v13.0</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -33,28 +33,26 @@
       --bd:#1f2937; --bd2:#374151;
       --tx:#e6edf3; --mt:#9ca3af;
       --gr:#34d399; --rd:#ff4d4f; --bl:#3b82f6;
-      /* ① 列高 1.25倍：原40px → 50px */
-      --row-h: 50px;
-      /* 字體尺寸 */
-      --fs-cell: 13px;
-      --fs-hdr:  12px;
-      --fs-btn:  12px;
-      --fs-time: 10px;
+      --row-h:50px; --fs-cell:13px; --fs-hdr:12px;
     }
     *{box-sizing:border-box;}
     body{
-      background:var(--bg); color:var(--tx);
+      background:var(--bg);color:var(--tx);
       font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
-      margin:0; padding:0;
-      height:100vh; height:-webkit-fill-available;
-      display:flex; flex-direction:column; overflow:hidden;
-      padding-top:var(--safe-top); padding-bottom:var(--safe-bot);
+      margin:0;padding:0;height:100vh;height:-webkit-fill-available;
+      display:flex;flex-direction:column;overflow:hidden;
+      padding-top:var(--safe-top);padding-bottom:var(--safe-bot);
     }
+
+    /* ══ 系統條 ══ */
+    #offBar{display:none;background:#7c3aed;color:white;text-align:center;font-size:11px;font-weight:600;padding:4px;flex-shrink:0;}
+    #instBar{display:none;background:#1e3a5f;color:white;padding:8px 14px;font-size:11px;font-weight:600;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid #2563eb;}
+    #instBar button{background:var(--bl);color:white;font-size:11px;padding:4px 12px;border-radius:6px;font-weight:700;}
 
     /* ══ 頭部 ══ */
     header{flex-shrink:0;background:var(--sf2);border-bottom:1px solid var(--bd);padding:8px 12px;z-index:50;}
     .hdr-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
-    .hdr-top h1{font-size:1.15rem;font-weight:700;color:var(--gr);margin:0;}
+    .hdr-top h1{font-size:1.1rem;font-weight:700;color:var(--gr);margin:0;}
     .hdr-btns{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
     .hdr-btns button{font-size:11px;padding:5px 10px;border-radius:6px;font-weight:600;white-space:nowrap;}
     .api-row{display:flex;gap:6px;align-items:center;margin-bottom:5px;}
@@ -63,24 +61,46 @@
     .add-row input{background:var(--sf);border:1px solid var(--bd2);padding:5px 8px;border-radius:6px;color:white;font-size:11px;}
     .st-txt{font-size:10px;color:var(--mt);}
 
-    /* ① 追蹤總數徽章 */
+    /* ══ 市場切換頁籤 ══ */
+    .market-tabs{
+      display:flex;gap:0;background:var(--bg);
+      border-bottom:2px solid var(--bd2);flex-shrink:0;
+    }
+    .tab-btn{
+      flex:1;padding:10px 0;font-size:14px;font-weight:700;
+      border:none;cursor:pointer;transition:all .2s;
+      background:transparent;color:var(--mt);
+      border-bottom:3px solid transparent;margin-bottom:-2px;
+      display:flex;align-items:center;justify-content:center;gap:6px;
+    }
+    .tab-btn.active-us{
+      color:#60a5fa;border-bottom-color:#3b82f6;
+      background:linear-gradient(180deg,rgba(59,130,246,.08) 0%,transparent 100%);
+    }
+    .tab-btn.active-tw{
+      color:#f87171;border-bottom-color:#ef4444;
+      background:linear-gradient(180deg,rgba(239,68,68,.08) 0%,transparent 100%);
+    }
+    .tab-count{
+      font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;
+      min-width:20px;text-align:center;
+    }
+    .tab-btn.active-us .tab-count{background:#1e3a5f;color:#93c5fd;}
+    .tab-btn.active-tw .tab-count{background:#450a0a;color:#fca5a5;}
+    .tab-btn:not(.active-us):not(.active-tw) .tab-count{background:#1f2937;color:#6b7280;}
+
+    /* 追蹤總數徽章 */
     #stockCount{
       display:inline-flex;align-items:center;gap:4px;
       background:#1e3a5f;border:1px solid #2563eb;
       border-radius:20px;padding:3px 10px;
-      font-size:11px;font-weight:700;color:#93c5fd;
-      white-space:nowrap;
+      font-size:11px;font-weight:700;color:#93c5fd;white-space:nowrap;
     }
     #stockCount span{color:#34d399;font-size:13px;}
 
     /* ══ 表格 ══ */
     .tbl-wrap{flex:1;overflow:auto;background:var(--bg);-webkit-overflow-scrolling:touch;}
-    /* ④ 新欄位佈局：線圖獨立欄，操作欄只剩更新/刪除 */
-    .tbl-scroll{
-      /* 代號85+名稱160+分類105+成交82+漲跌78+開盤78+最高78+最低78+成交量100+時間118+新聞80+財報80+線圖72+操作100 = 1294 */
-      min-width:1294px;
-      display:flex;flex-direction:column;
-    }
+    .tbl-scroll{min-width:1294px;display:flex;flex-direction:column;}
     .row{display:flex;min-height:var(--row-h);align-items:stretch;}
     .row>div{
       padding:6px 8px;display:flex;align-items:center;
@@ -90,43 +110,33 @@
     }
     .row>div:last-child{border-right:none;}
     .row:hover{background:rgba(255,255,255,.03);}
-
     .hdr-row{position:sticky;top:0;z-index:30;background:var(--sf);font-weight:700;color:#e5e7eb;}
     .hdr-row>div{background:var(--sf);font-size:var(--fs-hdr);}
-
     .col-tk{position:sticky;left:0;z-index:20;background:var(--bg);font-weight:700;border-right:2px solid var(--bd2)!important;}
     .hdr-row .col-tk{background:var(--sf);z-index:40;}
     .row:hover .col-tk{background:#0f1520;}
 
     /* 欄寬 */
-    .w-tk {width:85px;}
-    .w-nm {width:160px;}
-    .w-ct {width:105px;}
-    .w-pr {width:82px; justify-content:flex-end;}
-    .w-ch {width:78px; justify-content:flex-end;}
-    .w-oc {width:78px; justify-content:flex-end;}
+    .w-tk {width:85px;}  .w-nm {width:160px;} .w-ct {width:105px;}
+    .w-pr {width:82px;justify-content:flex-end;}
+    .w-ch {width:78px;justify-content:flex-end;}
+    .w-oc {width:78px;justify-content:flex-end;}
     .w-vl {width:100px;justify-content:flex-end;}
     .w-tm {width:118px;justify-content:center;}
-    /* ④ 縮減新聞/財報/線圖欄寬 */
-    .w-nw {width:80px; justify-content:center;}
-    .w-fn {width:80px; justify-content:center;}
-    .w-ch2{width:72px; justify-content:center;}   /* 線圖欄 */
-    /* ④ 操作欄只剩更新/刪除 */
+    .w-nw {width:80px;justify-content:center;}
+    .w-fn {width:80px;justify-content:center;}
+    .w-ch2{width:72px;justify-content:center;}
     .w-ac {width:100px;justify-content:center;gap:6px;border-right:none;}
 
-    /* 漲跌色（台灣：漲紅跌綠） */
-    .up  {color:var(--rd);}
-    .dn  {color:#22c55e;}
-    .flat{color:var(--mt);}
-    /* ③ 成交量顏色 */
-    .vol-up  {color:var(--rd);font-weight:600;}
-    .vol-dn  {color:#22c55e;font-weight:600;}
+    /* 漲跌色 */
+    .up  {color:var(--rd);}  .dn{color:#22c55e;}  .flat{color:var(--mt);}
+    .vol-up{color:var(--rd);font-weight:600;}
+    .vol-dn{color:#22c55e;font-weight:600;}
     .vol-flat{color:var(--mt);}
 
     button{transition:all .15s;font-weight:600;border-radius:5px;cursor:pointer;border:none;}
     button:active{transform:scale(.93);opacity:.85;}
-
-    .prog-bar {height:3px;background:#1e293b;border-radius:10px;margin:3px 0;}
+    .prog-bar{height:3px;background:#1e293b;border-radius:10px;margin:3px 0;}
     .prog-fill{height:3px;background:var(--bl);border-radius:10px;width:0%;transition:width .25s;}
 
     /* ══ Modal ══ */
@@ -135,13 +145,7 @@
     .mclose{width:100%;margin-top:18px;background:#1e293b;padding:11px;border-radius:12px;font-weight:700;font-size:13px;color:var(--tx);}
     .news-card{background:#1e293b;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;line-height:1.6;color:#cbd5e1;border-left:3px solid var(--bl);}
     .fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;background:#1e293b;border-radius:8px;padding:12px;border-left:3px solid var(--gr);}
-    .fin-lbl{font-size:10px;color:#6b7280;}
-    .fin-val{font-size:12px;font-weight:600;color:#e2e8f0;text-align:right;}
-
-    /* ══ 系統條 ══ */
-    #offBar{display:none;background:#7c3aed;color:white;text-align:center;font-size:11px;font-weight:600;padding:4px;flex-shrink:0;}
-    #instBar{display:none;background:#1e3a5f;color:white;padding:8px 14px;font-size:11px;font-weight:600;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid #2563eb;}
-    #instBar button{background:var(--bl);color:white;font-size:11px;padding:4px 12px;border-radius:6px;font-weight:700;}
+    .fin-lbl{font-size:10px;color:#6b7280;} .fin-val{font-size:12px;font-weight:600;color:#e2e8f0;text-align:right;}
 
     /* ══ Toast ══ */
     #toast{
@@ -153,14 +157,13 @@
       opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;
     }
     #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-
-    /* ══ Spinner ══ */
     .spin{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;}
     @keyframes sp{to{transform:rotate(360deg);}}
-
-    /* ══ K線區間按鈕 ══ */
     .rbtn{background:#1e293b;color:#9ca3af;font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid #334155;}
     .rbtn.act{background:var(--bl)!important;color:white!important;border-color:#2563eb!important;}
+
+    /* ══ 台股代號提示 ══ */
+    .tw-hint{font-size:9px;color:#6b7280;margin-top:1px;}
   </style>
 
 </head>
@@ -180,11 +183,10 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v12.7</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.0</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
-      <!-- ① 追蹤總數 -->
       <div id="stockCount">📊 追蹤 <span id="cntNum">0</span> 檔</div>
       <button onclick="updateAll()" style="background:#2563eb;color:white;">🔄 全部更新</button>
       <button onclick="focusAdd()"  style="background:#4f46e5;color:white;">＋ 新增</button>
@@ -193,12 +195,15 @@
       <button id="ocrBtn" onclick="document.getElementById('imgInp').click()" style="background:#059669;color:black;">📸 OCR</button>
     </div>
   </div>
+
   <div class="api-row">
-    <input id="apiKey" type="password" placeholder="Finnhub API Key（輸入後點儲存）" autocomplete="off">
-    <button onclick="saveKey()" style="background:#3f3f46;color:white;font-size:11px;padding:5px 10px;border-radius:6px;">儲存 Key</button>
+    <input id="apiKey" type="password" placeholder="Finnhub API Key（美股必填）" autocomplete="off">
+    <button onclick="saveKey()" style="background:#3f3f46;color:white;font-size:11px;padding:5px 10px;border-radius:6px;">儲存</button>
   </div>
+
   <div class="add-row">
-    <input id="newTk" placeholder="代號 ex: AAPL" style="width:90px;font-weight:700;color:#34d399;text-transform:uppercase;" onkeydown="if(event.key==='Enter')manualAdd()">
+    <input id="newTk" placeholder="代號" style="width:80px;font-weight:700;color:#34d399;text-transform:uppercase;" onkeydown="if(event.key==='Enter')manualAdd()">
+    <input id="newNm" placeholder="名稱（選填）" style="width:110px;" onkeydown="if(event.key==='Enter')manualAdd()">
     <input id="newCt" placeholder="分類（留空自動取得）" style="width:120px;" onkeydown="if(event.key==='Enter')manualAdd()">
     <button onclick="manualAdd()" style="background:#10b981;color:black;font-size:11px;padding:5px 10px;border-radius:6px;font-weight:700;">＋ 新增</button>
     <input id="srch" placeholder="🔍 搜尋代號 / 名稱 / 分類..." style="flex:1;min-width:100px;">
@@ -210,6 +215,19 @@
     </div>
   </div>
 </header>
+
+<!-- ════ 市場切換頁籤 ════ -->
+
+<div class="market-tabs">
+  <button id="tabUS" class="tab-btn active-us" onclick="switchMarket('US')">
+    🇺🇸 美股
+    <span class="tab-count" id="cntUS">0</span>
+  </button>
+  <button id="tabTW" class="tab-btn" onclick="switchMarket('TW')">
+    🇹🇼 台股
+    <span class="tab-count" id="cntTW">0</span>
+  </button>
+</div>
 
 <input type="file" id="imgInp" accept="image/*" multiple class="hidden" onchange="handleOCR(event)">
 <input type="file" id="csvInp" accept=".csv,.txt" class="hidden" onchange="importCSV(event)">
@@ -264,7 +282,7 @@
         <button id="r90"  onclick="changeRange(90)"  class="rbtn">90天</button>
         <button id="r180" onclick="changeRange(180)" class="rbtn">半年</button>
         <button id="r365" onclick="changeRange(365)" class="rbtn">1年</button>
-        <button onclick="closeModal('chartModal')" style="background:#1e293b;color:white;padding:4px 10px;border-radius:6px;font-size:11px;margin-left:6px;">✕ 關閉</button>
+        <button onclick="closeModal('chartModal')" style="background:#1e293b;color:white;padding:4px 10px;border-radius:6px;font-size:11px;margin-left:6px;">✕</button>
       </div>
     </div>
     <canvas id="chartCvs" style="width:100%;max-height:420px;"></canvas>
@@ -273,777 +291,982 @@
 
 <div id="toast"></div>
 
-<!-- ════════════════════════════════════════════════════
-     投資大師 Pro MAX  v12.5
-     新增需求：
-     ① 右上角追蹤總數，新增/刪除/更新時自動同步
-     ② 分類欄：確保每次 updateStock 都正確從 API 取得
-     ③ 成交量：修正取值邏輯＋比前日大=紅/小=綠
-     ③ 開盤/最高/最低：比前日收盤漲=紅/跌=綠/平=白
-     ④ 線圖獨立欄位，縮減新聞/財報/線圖欄寬
-        操作欄只留更新/刪除
-     ④ 列高放大1.25倍，字體/按鈕放大
-════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════
+     投資大師 Pro MAX  v13.0
+     架構重大升級：美股（US）＋台股（TW）雙市場頁籤
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     資料架構：
+       stocks = { US: [...], TW: [...] }  完全隔離
+       IndexedDB: stockDB_v3
+         - objectStore 'stocks_us'  美股
+         - objectStore 'stocks_tw'  台股
+
+     市場切換：
+       curMarket = 'US' | 'TW'
+       switchMarket(m) 切換頁籤，render 只顯示當前市場
+
+     API 差異：
+       美股 → Finnhub  /quote  /stock/profile2  /company-news
+       台股 → TWSE 臺灣證交所 open data API（免費，無需 API Key）
+              行情: https://mis.twse.com.tw/stock/api/getStockInfo.jsp
+              基本資料: https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL
+
+     台股功能完整對應美股：
+       ✅ 即時報價（成交/開盤/最高/最低/成交量/漲跌%）
+       ✅ 公司名稱 + 產業分類（TWSE 行業別）
+       ✅ 新聞（Yahoo Finance RSS 台股新聞）
+       ✅ K線圖（TWSE 日K資料）
+       ✅ 全部更新 / 個別更新
+       ✅ 新增 / 刪除 / 匯入 / 匯出 / OCR
+       ✅ 分類、成交量、開盤/最高/最低顏色
+══════════════════════════════════════════════════════════ -->
 
 <script>
 (function(){
 'use strict';
 
-/* ═══════════ 全域狀態 ═══════════ */
-let db=null, stocks=[], chartInst=null;
-let curTicker=null, curDays=30;
-let apiKey=localStorage.getItem('FINNHUB_KEY')||'';
-let deferPWA=null;
-const volCache={};   // ③ 成交量備援快取（保留前日值用於比較）
+/* ══════════════════════
+   全域狀態
+══════════════════════ */
+let db = null;
+let stocks = { US:[], TW:[] };   // 雙市場完全隔離
+let curMarket = 'US';             // 目前顯示的市場
+let chartInst = null;
+let curTicker = null, curDays = 30;
+let apiKey = localStorage.getItem('FINNHUB_KEY') || '';
+let deferPWA = null;
+const volCache = {};  // { 'US:AAPL': 12345, 'TW:2330': 67890 }
 
-if(apiKey) document.getElementById('apiKey').value=apiKey;
+if(apiKey) document.getElementById('apiKey').value = apiKey;
 
-/* ═══════════ 工具函式 ═══════════ */
-const isNum =s=>/^\d+(\.\d+)?$/.test((s||'').toString().trim());
-const isGood=v=>typeof v==='number'&&isFinite(v)&&v>0;
-const f2    =v=>parseFloat(v||0).toFixed(2);
-const fVol  =v=>{
-  const n=Number(v);
-  if(!n||isNaN(n))return '-';
-  if(n>=1e9)return(n/1e9).toFixed(2)+'B';
-  if(n>=1e6)return(n/1e6).toFixed(2)+'M';
-  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
+/* ══════════════════════
+   工具函式
+══════════════════════ */
+const isNum  = s => /^\d+(\.\d+)?$/.test((s||'').toString().trim());
+const isGood = v => typeof v === 'number' && isFinite(v) && v > 0;
+const f2     = v => parseFloat(v||0).toFixed(2);
+const fVol   = v => {
+  const n = Number(v);
+  if(!n||isNaN(n)) return '-';
+  if(n>=1e9) return (n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
   return n.toLocaleString();
 };
+/* 台股成交量（張 → 千股，TWSE 單位是張） */
+const fVolTW = v => {
+  const n = Number(v);
+  if(!n||isNaN(n)) return '-';
+  if(n>=1e6) return (n/1e6).toFixed(1)+'M張';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K張';
+  return n+'張';
+};
 
-/* ① 更新追蹤總數 */
-function updateCount(){
-  document.getElementById('cntNum').innerText=stocks.length;
-}
-
-/* ═══════════ Toast ═══════════ */
-let toastTmr=null;
-function toast(msg,ms=2800){
-  const el=document.getElementById('toast');
-  el.innerText=msg;el.classList.add('show');
+/* ══════════════════════
+   Toast
+══════════════════════ */
+let toastTmr = null;
+function toast(msg, ms=2800){
+  const el = document.getElementById('toast');
+  el.innerText = msg; el.classList.add('show');
   clearTimeout(toastTmr);
-  toastTmr=setTimeout(()=>el.classList.remove('show'),ms);
+  toastTmr = setTimeout(()=>el.classList.remove('show'), ms);
 }
 
-/* ═══════════ PWA ═══════════ */
-if('serviceWorker'in navigator)
+/* ══════════════════════
+   PWA
+══════════════════════ */
+if('serviceWorker' in navigator)
   navigator.serviceWorker.register('./sw.js').catch(()=>{});
-window.addEventListener('beforeinstallprompt',e=>{
-  e.preventDefault();deferPWA=e;
-  document.getElementById('instBar').style.display='flex';
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault(); deferPWA = e;
+  document.getElementById('instBar').style.display = 'flex';
 });
-document.getElementById('instBtn').addEventListener('click',async()=>{
-  if(!deferPWA)return;
+document.getElementById('instBtn').addEventListener('click', async()=>{
+  if(!deferPWA) return;
   deferPWA.prompt();
-  const r=await deferPWA.userChoice;
-  deferPWA=null;
-  document.getElementById('instBar').style.display='none';
-  if(r.outcome==='accepted')toast('✅ 已加入主畫面！');
+  const r = await deferPWA.userChoice;
+  deferPWA = null;
+  document.getElementById('instBar').style.display = 'none';
+  if(r.outcome==='accepted') toast('✅ 已加入主畫面！');
 });
-window.addEventListener('appinstalled',()=>toast('🎉 App 安裝成功！'));
-const chkOnline=()=>{document.getElementById('offBar').style.display=navigator.onLine?'none':'block';};
-window.addEventListener('online',chkOnline);window.addEventListener('offline',chkOnline);chkOnline();
+window.addEventListener('appinstalled', ()=>toast('🎉 App 安裝成功！'));
+const chkOnline = ()=>{ document.getElementById('offBar').style.display = navigator.onLine?'none':'block'; };
+window.addEventListener('online', chkOnline); window.addEventListener('offline', chkOnline); chkOnline();
 
-/* ═══════════ API Key UI ═══════════ */
+/* ══════════════════════
+   API Key UI
+══════════════════════ */
 function updateApiUI(){
-  const el=document.getElementById('apiSt');
-  if(apiKey){el.style.color='#34d399';el.innerText='🟢 API Key 已設定';}
-  else      {el.style.color='#9ca3af';el.innerText='⚪ 未設定 API Key';}
+  const el = document.getElementById('apiSt');
+  if(apiKey){ el.style.color='#34d399'; el.innerText='🟢 Finnhub Key 已設定（美股）'; }
+  else       { el.style.color='#9ca3af'; el.innerText='⚪ 未設定 Finnhub Key（台股可免費使用）'; }
 }
 updateApiUI();
-window.saveKey=()=>{
-  const k=document.getElementById('apiKey').value.trim();
-  if(!k){toast('⚠️ API Key 不能為空');return;}
-  apiKey=k;localStorage.setItem('FINNHUB_KEY',k);
-  updateApiUI();toast('✅ API Key 已儲存');
+window.saveKey = ()=>{
+  const k = document.getElementById('apiKey').value.trim();
+  if(!k){ toast('⚠️ API Key 不能為空'); return; }
+  apiKey = k; localStorage.setItem('FINNHUB_KEY', k);
+  updateApiUI(); toast('✅ Finnhub API Key 已儲存');
 };
 
-/* ═══════════ IndexedDB v2 ═══════════ */
-const JUNK_NM=new Set(['OCR','CSV','OCR掃描','掃描新增','新掃描','未知','未命名','undefined','null','']);
-/* 分類垃圾值：所有非真實行業分類的值一律清除，讓 API 重新取得 */
-const JUNK_CT=new Set([
-  /* 來源標記（舊版遺留） */
+/* ══════════════════════
+   垃圾值清單
+══════════════════════ */
+const JUNK_NM = new Set(['OCR','CSV','OCR掃描','掃描新增','新掃描','未知','未命名','undefined','null','']);
+const JUNK_CT = new Set([
   'OCR','CSV','OCR掃描','掃描新增','CSV匯入','新掃描',
-  /* 預設佔位符 */
-  '未分類','未知','未命名','其他','Other','N/A','NA',
-  /* 程式碼字串 */
-  'undefined','null','',
+  '未分類','未知','未命名','其他','Other','N/A','NA','undefined','null','',
 ]);
 
-const dbReq=indexedDB.open('stockDB_v2',1);
-dbReq.onupgradeneeded=e=>{
-  db=e.target.result;
-  if(!db.objectStoreNames.contains('stocks'))
-    db.createObjectStore('stocks',{keyPath:'ticker'});
+/* ══════════════════════
+   IndexedDB v3（雙 store）
+══════════════════════ */
+const dbReq = indexedDB.open('stockDB_v3', 1);
+dbReq.onupgradeneeded = e => {
+  db = e.target.result;
+  if(!db.objectStoreNames.contains('stocks_us'))
+    db.createObjectStore('stocks_us', { keyPath:'ticker' });
+  if(!db.objectStoreNames.contains('stocks_tw'))
+    db.createObjectStore('stocks_tw', { keyPath:'ticker' });
 };
-dbReq.onsuccess=e=>{db=e.target.result;loadDB();};
-dbReq.onerror  =()=>{console.warn('IndexedDB 不可用');render();};
+dbReq.onsuccess = e => { db = e.target.result; loadDB(); };
+dbReq.onerror   = () => { console.warn('IndexedDB 不可用'); render(); };
 
-function mkStock(ticker,name,cat){
-  return{
-    ticker,name:name||ticker,category:cat||'未分類',
-    price:0,change:0,open:0,high:0,low:0,volume:0,
-    prevClose:0,   // ③ 前日收盤（用於 open/high/low 顏色比較）
-    prevVol:0,     // ③ 前日成交量（用於成交量顏色比較）
-    updated:'-',
-    news:'',newsItems:[],financials:'',finData:{},
+/* 建立空白股票 */
+function mkStock(ticker, name, cat, market){
+  return {
+    ticker, name: name||ticker, category: cat||'',
+    market: market||curMarket,
+    price:0, change:0, open:0, high:0, low:0, volume:0,
+    prevClose:0, prevVol:0,
+    updated:'-', news:'', newsItems:[], financials:'', finData:{},
     history:{news:[],fin:[],adv:[]},
-    userCat:false,needUpdate:true
+    userCat:false, needUpdate:true
   };
 }
 
-function sanitize(s){
-  if(!s.history)   s.history  ={news:[],fin:[],adv:[]};
-  if(!s.newsItems) s.newsItems=[];
-  if(!s.finData)   s.finData  ={};
-  if(s.userCat===undefined)  s.userCat=false;
-  if(s.prevClose===undefined)s.prevClose=0;
-  if(s.prevVol  ===undefined)s.prevVol  =0;
+/* sanitize */
+function sanitize(s, market){
+  if(!s.history)    s.history   = {news:[],fin:[],adv:[]};
+  if(!s.newsItems)  s.newsItems = [];
+  if(!s.finData)    s.finData   = {};
+  if(s.userCat===undefined)   s.userCat   = false;
+  if(s.prevClose===undefined) s.prevClose = 0;
+  if(s.prevVol===undefined)   s.prevVol   = 0;
+  if(!s.market) s.market = market;
 
-  const nm=(s.name||'').trim();
-  if(!nm||JUNK_NM.has(nm)||isNum(nm)||nm===s.ticker){s.name=s.ticker;s.needUpdate=true;}
-
-  /* 分類清洗：JUNK_CT 裡的值 + 純數字 → 全部清除，等 updateStock 從 API 補回
-     注意：userCat 一律重設為 false，確保 API 可以覆寫                          */
-  const ct=(s.category||'').trim();
-  if(!ct||JUNK_CT.has(ct)||isNum(ct)){
-    s.category='';       // 清空而非設為「未分類」，讓 render 顯示「取得中...」
-    s.userCat=false;
-    s.needUpdate=true;
+  const nm = (s.name||'').trim();
+  if(!nm || JUNK_NM.has(nm) || isNum(nm) || nm===s.ticker){
+    s.name = s.ticker; s.needUpdate = true;
   }
-
-  if(!isGood(Number(s.price)))s.price=0;
+  const ct = (s.category||'').trim();
+  if(!ct || JUNK_CT.has(ct) || isNum(ct)){
+    s.category = ''; s.userCat = false; s.needUpdate = true;
+  }
+  if(!isGood(Number(s.price))) s.price = 0;
   return s;
 }
 
-function saveToDB(s){if(!db)return;db.transaction('stocks','readwrite').objectStore('stocks').put(s);}
-function delFromDB(t){if(!db)return;db.transaction('stocks','readwrite').objectStore('stocks').delete(t);}
-
-function loadDB(){
-  if(!db)return;
-  const r=db.transaction('stocks','readonly').objectStore('stocks').getAll();
-  r.onsuccess=()=>{
-    stocks=(r.result||[]).map(sanitize);
-    if(!stocks.length){const s=mkStock('AAPL','Apple Inc.','科技');s.needUpdate=false;stocks.push(s);saveToDB(s);}
-    render();
-    if(apiKey)setTimeout(updateAll,600);
-  };
+/* DB 操作 */
+function storeName(market){ return market==='TW' ? 'stocks_tw' : 'stocks_us'; }
+function saveToDB(s){
+  if(!db) return;
+  db.transaction(storeName(s.market||curMarket),'readwrite')
+    .objectStore(storeName(s.market||curMarket)).put(s);
+}
+function delFromDB(ticker, market){
+  if(!db) return;
+  db.transaction(storeName(market),'readwrite')
+    .objectStore(storeName(market)).delete(ticker);
 }
 
-/* ═══════════ Finnhub API ═══════════ */
-async function callAPI(path,params={}){
-  if(!apiKey)throw new Error('NO_KEY');
-  const url=new URL(`https://finnhub.io/api/v1${path}`);
-  url.searchParams.set('token',apiKey);
+/* 載入 DB */
+function loadDB(){
+  if(!db) return;
+  let loaded = 0;
+  const done = ()=>{
+    loaded++;
+    if(loaded < 2) return;
+    // 兩個市場都載入完再更新
+    updateTabCounts();
+    render();
+    if(apiKey || true) setTimeout(updateAll, 700); // 台股不需要 apiKey
+  };
+
+  ['US','TW'].forEach(m=>{
+    const sn = storeName(m);
+    const req = db.transaction(sn,'readonly').objectStore(sn).getAll();
+    req.onsuccess = ()=>{
+      stocks[m] = (req.result||[]).map(s=>sanitize(s,m));
+      if(!stocks[m].length && m==='US'){
+        const seed = mkStock('AAPL','Apple Inc.','科技','US');
+        seed.needUpdate = false; stocks['US'].push(seed); saveToDB(seed);
+      }
+      if(!stocks[m].length && m==='TW'){
+        const seed = mkStock('2330','台積電','半導體','TW');
+        seed.needUpdate = false; stocks['TW'].push(seed); saveToDB(seed);
+      }
+      done();
+    };
+    req.onerror = ()=>done();
+  });
+}
+
+/* ══════════════════════
+   市場切換
+══════════════════════ */
+function switchMarket(m){
+  curMarket = m;
+  // 更新頁籤樣式
+  document.getElementById('tabUS').className = 'tab-btn' + (m==='US'?' active-us':'');
+  document.getElementById('tabTW').className = 'tab-btn' + (m==='TW'?' active-tw':'');
+  // 新增輸入欄提示
+  document.getElementById('newTk').placeholder = m==='TW' ? '代號 ex:2330' : '代號 ex:AAPL';
+  document.getElementById('newTk').style.color  = m==='TW' ? '#f87171' : '#34d399';
+  render();
+}
+window.switchMarket = switchMarket;
+
+/* 更新頁籤數量 */
+function updateTabCounts(){
+  document.getElementById('cntUS').innerText = stocks['US'].length;
+  document.getElementById('cntTW').innerText = stocks['TW'].length;
+  document.getElementById('cntNum').innerText = stocks[curMarket].length;
+}
+
+/* ══════════════════════
+   美股 Finnhub API
+══════════════════════ */
+async function callFinnhub(path, params={}){
+  if(!apiKey) throw new Error('NO_KEY');
+  const url = new URL(`https://finnhub.io/api/v1${path}`);
+  url.searchParams.set('token', apiKey);
   Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
-  const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
-  if(!res.ok)throw new Error(`HTTP ${res.status}`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-/* ════════════════════════════════════════
-   ② ③ fetchQuote：報價 + 成交量 + 前日收盤
-   Finnhub /quote 欄位：
-     c  = 當前成交價
-     o  = 今日開盤
-     h  = 今日最高
-     l  = 今日最低
-     pc = 前日收盤（Previous Close）← 用於顏色比較
-     dp = 漲跌幅%
-     v  = 當日累計成交量
-════════════════════════════════════════ */
-async function fetchQuote(ticker){
+async function fetchUSQuote(ticker){
   try{
-    const d=await callAPI('/quote',{symbol:ticker});
-    const c=Number(d.c);
-    if(!isGood(c))return null;
-
-    const o=Number(d.o), h=Number(d.h), l=Number(d.l);
-    const pc=Number(d.pc);   // ③ 前日收盤
-    const v=Number(d.v);
-
-    /* ③ 成交量備援快取：
-       - 有值 → 存快取，同時把舊值存為 prevVol
-       - 無值 → 用快取值，prevVol 保持上次 */
+    const d = await callFinnhub('/quote', { symbol: ticker });
+    const c = Number(d.c); if(!isGood(c)) return null;
+    const o=Number(d.o), h=Number(d.h), l=Number(d.l), pc=Number(d.pc), v=Number(d.v);
+    const cacheKey = 'US:'+ticker;
     let vol=0, prevVol=0;
-    if(v>0){
-      prevVol=volCache[ticker]||0;  // 上次快取值 = 前日量
-      vol=v;
-      volCache[ticker]=v;
-    }else if(volCache[ticker]>0){
-      vol=volCache[ticker];
-      prevVol=0;
-    }
-
-    return{
-      price    :c,
-      change   :Number(d.dp)||0,
-      open     :isGood(o)?o:0,
-      high     :isGood(h)?h:0,
-      low      :isGood(l)?l:0,
-      volume   :vol,
-      prevVol  :prevVol,    // ③
-      prevClose:isGood(pc)?pc:0  // ③
-    };
-  }catch{return null;}
+    if(v>0){ prevVol=volCache[cacheKey]||0; vol=v; volCache[cacheKey]=v; }
+    else if(volCache[cacheKey]>0){ vol=volCache[cacheKey]; }
+    return{ price:c, change:Number(d.dp)||0, open:isGood(o)?o:0, high:isGood(h)?h:0,
+            low:isGood(l)?l:0, volume:vol, prevVol, prevClose:isGood(pc)?pc:0 };
+  }catch{ return null; }
 }
 
-/* ════════════════════════════════════════
-   ② fetchProfile：公司名稱 + 行業分類
-   每次 updateStock 都強制呼叫確保取到正確分類
-════════════════════════════════════════ */
-async function fetchProfile(ticker){
+async function fetchUSProfile(ticker){
   try{
-    const d=await callAPI('/stock/profile2',{symbol:ticker});
-    if(!d||Object.keys(d).length===0||!d.name)return null;
-    return{name:(d.name||'').trim(),industry:(d.finnhubIndustry||'').trim()};
-  }catch{return null;}
+    const d = await callFinnhub('/stock/profile2', { symbol: ticker });
+    if(!d||Object.keys(d).length===0||!d.name) return null;
+    return { name:(d.name||'').trim(), industry:(d.finnhubIndustry||'').trim() };
+  }catch{ return null; }
 }
 
-/* ════════════════════════════════════════
-   ② 行業英文 → 中文對照（90+ 條）
-════════════════════════════════════════ */
-const IND={
+/* 美股行業中文對照 */
+const US_IND = {
   'Technology':'科技','Software—Application':'應用軟體','Software—Infrastructure':'基礎軟體',
   'Semiconductors':'半導體','Semiconductor Equipment & Materials':'半導體設備',
   'Electronic Components':'電子零組件','Electronic Equipment & Instruments':'電子設備儀器',
   'Consumer Electronics':'消費電子','Computer Hardware':'電腦硬體',
   'Information Technology Services':'IT服務','Internet Content & Information':'網路內容',
   'Internet Retail':'網路零售','Communication Equipment':'通訊設備',
-  'Scientific & Technical Instruments':'科學儀器',
-  'Communication Services':'通訊服務','Telecom Services':'電信',
-  'Broadcasting':'廣播媒體','Media—Diversified':'多元媒體','Media':'媒體',
-  'Entertainment':'娛樂','Publishing':'出版','Advertising Agencies':'廣告代理',
+  'Scientific & Technical Instruments':'科學儀器','Communication Services':'通訊服務',
+  'Telecom Services':'電信','Broadcasting':'廣播媒體','Media—Diversified':'多元媒體',
+  'Media':'媒體','Entertainment':'娛樂','Publishing':'出版','Advertising Agencies':'廣告代理',
   'Consumer Cyclical':'消費循環','Consumer Defensive':'民生消費',
-  'Specialty Retail':'特殊零售','Apparel Retail':'服飾零售','Apparel Manufacturing':'服飾製造',
-  'Department Stores':'百貨零售','Grocery Stores':'超市零售','Discount Stores':'折扣零售',
-  'Home Improvement Retail':'居家零售','Luxury Goods':'奢侈品','Restaurants':'餐飲',
+  'Specialty Retail':'特殊零售','Apparel Retail':'服飾零售','Restaurants':'餐飲',
   'Lodging':'旅館住宿','Resorts & Casinos':'度假賭場','Travel Services':'旅遊服務',
-  'Personal Services':'個人服務',
   'Auto Manufacturers':'汽車製造','Auto Parts':'汽車零件','Auto Dealers':'汽車經銷',
-  'Trucks & Commercial Vehicles':'商用車輛','Recreational Vehicles':'休閒車輛',
+  'Trucks & Commercial Vehicles':'商用車輛',
   'Financial Services':'金融服務','Banks—Diversified':'多元銀行','Banks—Regional':'區域銀行',
   'Insurance—Diversified':'多元保險','Insurance—Life':'人壽保險',
-  'Insurance—Property & Casualty':'產物保險','Insurance—Specialty':'特殊保險',
-  'Insurance—Reinsurance':'再保險','Asset Management':'資產管理','Capital Markets':'資本市場',
-  'Credit Services':'信貸服務','Mortgage Finance':'房貸金融',
-  'Financial Conglomerates':'金融集團','Insurance Brokers':'保險經紀',
+  'Insurance—Property & Casualty':'產物保險','Asset Management':'資產管理',
+  'Capital Markets':'資本市場','Credit Services':'信貸服務',
   'Healthcare':'醫療保健','Biotechnology':'生技','Drug Manufacturers—General':'大型製藥',
   'Drug Manufacturers—Specialty & Generic':'特殊製藥','Medical Devices':'醫療設備',
   'Medical Instruments & Supplies':'醫療器材','Medical Care Facilities':'醫療設施',
   'Health Information Services':'醫療資訊','Diagnostics & Research':'診斷研究',
-  'Healthcare Plans':'醫療保險','Pharmaceutical Retailers':'藥局零售',
+  'Healthcare Plans':'醫療保險',
   'Energy':'能源','Oil & Gas E&P':'油氣探勘','Oil & Gas Integrated':'綜合能源',
   'Oil & Gas Refining & Marketing':'油氣煉製','Oil & Gas Equipment & Services':'油氣設備',
-  'Oil & Gas Midstream':'油氣中游','Oil & Gas Drilling':'石油鑽探','Thermal Coal':'熱煤','Uranium':'鈾礦',
+  'Oil & Gas Midstream':'油氣中游','Uranium':'鈾礦',
   'Utilities—Regulated Electric':'電力公用','Utilities—Regulated Gas':'天然氣公用',
   'Utilities—Renewable':'再生能源','Utilities—Diversified':'多元公用事業',
-  'Utilities—Independent Power Producers':'獨立電廠','Utilities—Regulated Water':'水務公用',
   'Industrials':'工業','Aerospace & Defense':'航太國防','Airlines':'航空',
-  'Airports & Air Services':'機場服務','Railroads':'鐵路','Trucking':'貨運',
-  'Marine Shipping':'海運','Engineering & Construction':'工程建設',
-  'Specialty Industrial Machinery':'工業機械','Industrial Distribution':'工業配銷',
+  'Railroads':'鐵路','Trucking':'貨運','Marine Shipping':'海運',
+  'Engineering & Construction':'工程建設','Specialty Industrial Machinery':'工業機械',
   'Staffing & Employment Services':'人力資源','Waste Management':'廢棄物管理',
-  'Security & Protection Services':'安保服務','Conglomerates':'多元集團',
   'Basic Materials':'原材料','Chemicals':'化工','Specialty Chemicals':'特殊化工',
-  'Agricultural Chemicals':'農化','Steel':'鋼鐵','Aluminum':'鋁業','Copper':'銅業',
-  'Gold':'黃金','Silver':'白銀','Other Precious Metals & Mining':'貴金屬礦業',
-  'Coal':'煤礦','Lumber & Wood Production':'木材','Paper & Paper Products':'紙業',
-  'Real Estate':'房地產','Real Estate—Development':'房地產開發',
-  'Real Estate Services':'房地產服務','REIT—Diversified':'多元不動產信託',
+  'Steel':'鋼鐵','Aluminum':'鋁業','Copper':'銅業','Gold':'黃金','Silver':'白銀',
+  'Real Estate':'房地產','REIT—Diversified':'多元不動產信託',
   'REIT—Retail':'零售不動產信託','REIT—Office':'辦公不動產信託',
   'REIT—Residential':'住宅不動產信託','REIT—Industrial':'工業不動產信託',
-  'REIT—Healthcare Facilities':'醫療不動產信託','REIT—Hotel & Motel':'旅館不動產信託',
-  'REIT—Specialty':'特殊不動產信託','REIT—Mortgage':'房貸不動產信託',
-  'Farm & Heavy Construction Machinery':'農業重機械','Agricultural Inputs':'農業投入品',
-  'Farm Products':'農產品','Tobacco':'菸草','Beverages—Non-Alcoholic':'非酒精飲料',
-  'Beverages—Brewers':'啤酒','Beverages—Wineries & Distilleries':'葡萄酒蒸餾',
-  'Food Distribution':'食品配銷','Packaged Foods':'包裝食品','Confectioners':'糖果甜食',
-  'Household & Personal Products':'日用品','Furnishings Fixtures & Appliances':'家具家電',
+  'Packaged Foods':'包裝食品','Household & Personal Products':'日用品',
+  'Beverages—Non-Alcoholic':'非酒精飲料','Tobacco':'菸草',
 };
-function toZhCat(industry){
-  if(!industry)return null;
-  const r=industry.trim();if(!r)return null;
-  if(IND[r])return IND[r];
-  for(const[en,zh]of Object.entries(IND))
-    if(r.toLowerCase().includes(en.toLowerCase()))return zh;
+function toZhCatUS(industry){
+  if(!industry) return null;
+  const r = industry.trim(); if(!r) return null;
+  if(US_IND[r]) return US_IND[r];
+  for(const[en,zh] of Object.entries(US_IND))
+    if(r.toLowerCase().includes(en.toLowerCase())) return zh;
   return r;
 }
 
-/* ════════════════════════════════════════
-   ② ③ updateStock — 強制更新所有欄位
-   包含：名稱、分類、價格、開盤/最高/最低、
-         成交量、前日收盤（供顏色比較用）
-════════════════════════════════════════ */
+/* ══════════════════════
+   台股 TWSE / TPEX API
+══════════════════════ */
+
+/* 台股即時行情（TWSE mis api，免費無需 key） */
+async function fetchTWQuote(ticker){
+  try{
+    // TWSE 上市：代號+.TW，上櫃：代號+.TWO
+    // 先嘗試上市
+    const sym = ticker.includes('.') ? ticker : `${ticker}.TW`;
+    const url  = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${ticker}.tw&json=1&delay=0`;
+    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    const msgArray = data?.msgArray;
+    if(!msgArray?.length) return await fetchTWQuoteOTC(ticker);
+
+    const d = msgArray[0];
+    // TWSE 欄位：z=最新成交, o=開盤, h=最高, l=最低, y=昨收, v=成交量(張)
+    const c  = parseFloat(d.z); if(!isGood(c)) return null;
+    const o  = parseFloat(d.o), h = parseFloat(d.h), lo = parseFloat(d.l);
+    const pc = parseFloat(d.y);  // 昨收
+    const v  = parseFloat(d.v);  // 成交量(張)
+    const chg = pc>0 ? ((c-pc)/pc*100) : 0;
+
+    const cacheKey = 'TW:'+ticker;
+    let vol=0, prevVol=0;
+    if(v>0){ prevVol=volCache[cacheKey]||0; vol=v; volCache[cacheKey]=v; }
+    else if(volCache[cacheKey]>0){ vol=volCache[cacheKey]; }
+
+    return{ price:c, change:parseFloat(chg.toFixed(2)),
+            open:isGood(o)?o:0, high:isGood(h)?h:0, low:isGood(lo)?lo:0,
+            volume:vol, prevVol, prevClose:isGood(pc)?pc:0 };
+  }catch{ return await fetchTWQuoteOTC(ticker); }
+}
+
+/* 上櫃（OTC/TPEX） */
+async function fetchTWQuoteOTC(ticker){
+  try{
+    const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${ticker}.tw&json=1&delay=0`;
+    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    const d = data?.msgArray?.[0];
+    if(!d) return null;
+    const c  = parseFloat(d.z); if(!isGood(c)) return null;
+    const o  = parseFloat(d.o), h = parseFloat(d.h), lo = parseFloat(d.l);
+    const pc = parseFloat(d.y), v  = parseFloat(d.v);
+    const chg = pc>0 ? ((c-pc)/pc*100) : 0;
+    const cacheKey = 'TW:'+ticker;
+    let vol=0, prevVol=0;
+    if(v>0){ prevVol=volCache[cacheKey]||0; vol=v; volCache[cacheKey]=v; }
+    else if(volCache[cacheKey]>0){ vol=volCache[cacheKey]; }
+    return{ price:c, change:parseFloat(chg.toFixed(2)),
+            open:isGood(o)?o:0, high:isGood(h)?h:0, low:isGood(lo)?lo:0,
+            volume:vol, prevVol, prevClose:isGood(pc)?pc:0 };
+  }catch{ return null; }
+}
+
+/* 台股公司基本資料（TWSE 上市公司列表，免費） */
+let twProfileCache = null;
+async function fetchTWProfiles(){
+  if(twProfileCache) return twProfileCache;
+  try{
+    const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+      { signal: AbortSignal.timeout(10000) });
+    if(!res.ok) throw new Error('TWSE profile 失敗');
+    twProfileCache = await res.json();
+    return twProfileCache;
+  }catch{ return []; }
+}
+
+/* 台股行業別（TWSE 產業別代碼對照） */
+const TW_IND_MAP = {
+  '01':'水泥工業','02':'食品工業','03':'塑膠工業','04':'紡織纖維',
+  '05':'電機機械','06':'電器電纜','07':'化學生技醫療','08':'玻璃陶瓷',
+  '09':'造紙工業','10':'鋼鐵工業','11':'橡膠工業','12':'汽車工業',
+  '13':'電子工業','14':'建材營造','15':'航運業','16':'觀光餐旅',
+  '17':'金融保險','18':'貿易百貨','19':'綜合','20':'其他',
+  '21':'化學工業','22':'生技醫療','23':'油電燃氣業',
+  '24':'半導體業','25':'電腦及周邊設備業','26':'光電業',
+  '27':'通信網路業','28':'電子零組件業','29':'電子通路業',
+  '30':'資訊服務業','31':'其他電子業',
+  'W':'文化創意業','M':'管理股票',
+};
+
+async function fetchTWProfile(ticker){
+  try{
+    // 嘗試從 TWSE 公開資料取公司名稱和產業
+    const url = `https://openapi.twse.com.tw/v1/opendata/t187ap03_L`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    const item = data.find(x => x['公司代號'] === ticker || x['股票代號'] === ticker);
+    if(item){
+      return{
+        name    : item['公司簡稱'] || item['公司名稱'] || ticker,
+        industry: item['產業類別'] || item['行業別'] || ''
+      };
+    }
+  }catch{}
+
+  // 備援：從上市公司基本資料抓
+  try{
+    const url2 = `https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d?stockNo=${ticker}`;
+    const res2 = await fetch(url2, { signal: AbortSignal.timeout(8000) });
+    if(res2.ok){
+      const d2 = await res2.json();
+      if(d2?.length){ return{ name: d2[0]['名稱']||ticker, industry: d2[0]['產業別']||'' }; }
+    }
+  }catch{}
+
+  // 再備援：從上櫃公司資料抓
+  try{
+    const url3 = `https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes`;
+    const res3 = await fetch(url3, { signal: AbortSignal.timeout(8000) });
+    if(res3.ok){
+      const d3 = await res3.json();
+      const item = d3.find(x=>x['SecuritiesCompanyCode']===ticker||x['CompanyCode']===ticker);
+      if(item){ return{ name:item['CompanyAbbreviation']||item['CompanyName']||ticker, industry:item['IndustryType']||'' }; }
+    }
+  }catch{}
+
+  return null;
+}
+
+/* ══════════════════════
+   統一更新函式
+══════════════════════ */
 async function updateStock(s){
-  const q=await fetchQuote(s.ticker);
+  const isTW = s.market === 'TW';
+
+  /* Step1: 報價 */
+  const q = isTW ? await fetchTWQuote(s.ticker) : await fetchUSQuote(s.ticker);
   if(q){
-    s.price    =q.price;
-    s.change   =q.change;
-    if(q.open >0)s.open =q.open;
-    if(q.high >0)s.high =q.high;
-    if(q.low  >0)s.low  =q.low;
-    if(q.volume>0)s.volume=q.volume;
-    /* ③ 儲存前日收盤 & 前日成交量，供 render 做顏色判斷 */
-    if(q.prevClose>0)s.prevClose=q.prevClose;
-    if(q.prevVol  >0)s.prevVol  =q.prevVol;
-    s.updated=new Date().toLocaleString('zh-TW',{hour12:false});
+    s.price  = q.price; s.change = q.change;
+    if(q.open >0) s.open  = q.open;
+    if(q.high >0) s.high  = q.high;
+    if(q.low  >0) s.low   = q.low;
+    if(q.volume>0) s.volume = q.volume;
+    if(q.prevClose>0) s.prevClose = q.prevClose;
+    if(q.prevVol  >0) s.prevVol   = q.prevVol;
+    s.updated = new Date().toLocaleString('zh-TW',{hour12:false});
   }else{
-    s.updated='⚠️ 更新失敗';
+    s.updated = '⚠️ 更新失敗';
   }
 
-  /* ② 公司資料（名稱＋分類）每次強制呼叫 */
-  const p=await fetchProfile(s.ticker);
+  /* Step2: 公司資料（名稱＋分類） */
+  const p = isTW ? await fetchTWProfile(s.ticker) : await fetchUSProfile(s.ticker);
   if(p){
-    /* 名稱：API 有值就覆寫 */
-    if(p.name)s.name=p.name;
-
-    /* 分類更新規則（重新設計，更嚴格）：
-       ✅ 保留：userCat=true 且 category 有真實值（不在垃圾清單、不是空值）
-       🔄 覆寫：其他所有情況，包含「未分類」、空值、任何垃圾值            */
-    const hasRealUserCat = s.userCat === true
-      && s.category
-      && s.category.trim() !== ''
-      && !JUNK_CT.has(s.category.trim());
-
+    if(p.name) s.name = p.name;
+    const hasRealUserCat = s.userCat===true && s.category &&
+      s.category.trim()!=='' && !JUNK_CT.has(s.category.trim());
     if(!hasRealUserCat){
-      const zh=toZhCat(p.industry);
+      const zh = isTW ? (p.industry||'') : toZhCatUS(p.industry);
       s.category = zh || '未分類';
-      s.userCat  = false;  // API 覆寫後，清除 userCat 標記
+      s.userCat  = false;
     }
   }else{
-    /* Profile API 失敗：清除垃圾名稱，分類保持原值（等下次更新） */
-    if(!s.name||JUNK_NM.has(s.name)||s.name===s.ticker)s.name=s.ticker;
-    if(!s.category||JUNK_CT.has(s.category.trim()))s.category='未分類';
+    if(!s.name||JUNK_NM.has(s.name)||s.name===s.ticker) s.name = s.ticker;
+    if(!s.category||JUNK_CT.has(s.category.trim())) s.category = '未分類';
   }
-  s.needUpdate=false;
+
+  s.needUpdate = false;
   saveToDB(s);
 }
 
-/* ════════════════════════════════════════
-   全部更新 / 個別更新 / 刪除
-════════════════════════════════════════ */
+/* ══════════════════════
+   全部更新（只更新當前市場）
+══════════════════════ */
 async function updateAll(){
-  if(!apiKey){toast('⚠️ 請先設定 API Key');return;}
-  if(!navigator.onLine){toast('📡 離線狀態，無法更新');return;}
-  const wrap=document.getElementById('progWrap');
-  const fill=document.getElementById('progFill');
-  const ctEl=document.getElementById('progCt');
-  wrap.classList.remove('hidden');fill.style.width='0%';
-  let done=0;const total=stocks.length;ctEl.innerText=`0/${total}`;
-  const queue=[...stocks];
-  const worker=async()=>{
+  const m = curMarket;
+  const list = stocks[m];
+  if(!list.length){ toast(`⚠️ ${m==='US'?'美股':'台股'}清單是空的`); return; }
+  if(m==='US' && !apiKey){ toast('⚠️ 美股需要設定 Finnhub API Key'); return; }
+  if(!navigator.onLine){ toast('📡 離線狀態，無法更新'); return; }
+
+  const wrap  = document.getElementById('progWrap');
+  const fill  = document.getElementById('progFill');
+  const ctEl  = document.getElementById('progCt');
+  wrap.classList.remove('hidden'); fill.style.width='0%';
+  let done=0; const total=list.length; ctEl.innerText=`0/${total}`;
+
+  const queue  = [...list];
+  const worker = async()=>{
     while(queue.length){
-      const s=queue.shift();
-      try{await updateStock(s);}catch(e){console.warn(s.ticker,e);}
-      done++;fill.style.width=(done/total*100)+'%';ctEl.innerText=`${done}/${total}`;
-      render(); // ① render 內會更新 count
+      const s = queue.shift();
+      try{ await updateStock(s); }catch(e){ console.warn(s.ticker,e); }
+      done++; fill.style.width=(done/total*100)+'%'; ctEl.innerText=`${done}/${total}`;
+      render();
     }
   };
   await Promise.allSettled([worker(),worker(),worker()]);
-  toast(`✅ 已更新 ${total} 筆`);
+  toast(`✅ ${m==='US'?'美股':'台股'}已更新 ${total} 筆`);
   setTimeout(()=>wrap.classList.add('hidden'),2000);
 }
+window.updateAll = updateAll;
 
-window.updateOne=async ticker=>{
-  const s=stocks.find(x=>x.ticker===ticker);if(!s)return;
+/* 個別更新 */
+window.updateOne = async ticker =>{
+  const s = stocks[curMarket].find(x=>x.ticker===ticker); if(!s) return;
   toast(`🔄 更新 ${ticker}...`);
-  await updateStock(s);render();
+  await updateStock(s); render();
   toast(`✅ ${s.name||ticker} 已更新`);
 };
 
-window.deleteStock=ticker=>{
-  if(!confirm(`確定刪除 ${ticker}？`))return;
-  stocks=stocks.filter(s=>s.ticker!==ticker);
-  delFromDB(ticker);render();  // ① render 更新 count
+/* 刪除 */
+window.deleteStock = ticker =>{
+  if(!confirm(`確定刪除 ${ticker}？`)) return;
+  stocks[curMarket] = stocks[curMarket].filter(s=>s.ticker!==ticker);
+  delFromDB(ticker, curMarket); render();
   toast(`🗑️ 已刪除 ${ticker}`);
 };
 
-/* 新增股票 */
-window.focusAdd=()=>document.getElementById('newTk').focus();
-window.manualAdd=async()=>{
-  const ticker=document.getElementById('newTk').value.trim().toUpperCase();
-  if(!ticker){toast('⚠️ 請輸入代號');return;}
-  if(!/^[A-Z.\-]{1,10}$/.test(ticker)){toast('⚠️ 代號格式錯誤（英文1-10碼）');return;}
-  if(stocks.find(s=>s.ticker===ticker)){toast(`⚠️ ${ticker} 已在清單中`);return;}
+/* ══════════════════════
+   新增股票
+══════════════════════ */
+window.focusAdd = ()=>document.getElementById('newTk').focus();
+window.manualAdd = async()=>{
+  const raw    = document.getElementById('newTk').value.trim();
+  const ticker = curMarket==='US' ? raw.toUpperCase() : raw.replace(/[^0-9A-Za-z]/g,'');
+  if(!ticker){ toast('⚠️ 請輸入代號'); return; }
+  if(curMarket==='US' && !/^[A-Z.\-]{1,10}$/.test(ticker)){ toast('⚠️ 美股代號格式錯誤'); return; }
+  if(curMarket==='TW' && !/^\d{4,6}[A-Z]?$/.test(ticker)){ toast('⚠️ 台股代號格式：4-6位數字'); return; }
+  if(stocks[curMarket].find(s=>s.ticker===ticker)){ toast(`⚠️ ${ticker} 已在清單中`); return; }
 
-  const rawCt=document.getElementById('newCt').value.trim();
-  /* userCat=true 的唯一合法路徑：使用者在新增介面主動輸入分類
-     且輸入值不在垃圾清單，才標記保留；否則由 API 取得           */
-  const isUserInputCat = rawCt !== '' && !JUNK_CT.has(rawCt);
-  const s=mkStock(ticker,ticker, isUserInputCat ? rawCt : '');
+  const rawNm  = document.getElementById('newNm').value.trim();
+  const rawCt  = document.getElementById('newCt').value.trim();
+  const isUserInputCat = rawCt!=='' && !JUNK_CT.has(rawCt);
+  const s = mkStock(ticker, rawNm||ticker, isUserInputCat?rawCt:'', curMarket);
   s.userCat = isUserInputCat;
 
-  stocks.push(s);saveToDB(s);render();
+  stocks[curMarket].push(s); saveToDB(s); render();
   document.getElementById('newTk').value='';
+  document.getElementById('newNm').value='';
   document.getElementById('newCt').value='';
-  toast(`➕ 已新增 ${ticker}，正在取得資料...`);
-  if(apiKey){await updateStock(s);render();toast(`✅ ${s.name||ticker} 完成`);}
+  toast(`➕ 已新增 ${ticker}，取得資料中...`);
+  if(curMarket==='US'&&!apiKey){ toast('⚠️ 請設定 Finnhub API Key 以取得美股資料'); return; }
+  await updateStock(s); render(); toast(`✅ ${s.name||ticker} 完成`);
 };
 
-/* ════════════════════════════════════════
-   新聞 / 財報載入
-════════════════════════════════════════ */
+/* ══════════════════════
+   新聞載入
+══════════════════════ */
 async function loadNews(s){
-  if(!apiKey){s.news='需API';saveToDB(s);render();return;}
-  s.news='loading';render();
+  const isTW = s.market==='TW';
+  if(!isTW && !apiKey){ s.news='需Finnhub Key'; saveToDB(s); render(); return; }
+  s.news='loading'; render();
   try{
-    const from=new Date(Date.now()-7*86400000).toISOString().split('T')[0];
-    const to  =new Date().toISOString().split('T')[0];
-    const data=await callAPI('/company-news',{symbol:s.ticker,from,to});
-    if(data?.length){
-      s.newsItems=data.slice(0,6).map(n=>({headline:n.headline,source:n.source,url:n.url,datetime:n.datetime}));
-      s.news='loaded';
-    }else{s.newsItems=[];s.news='無近期新聞';}
-  }catch{s.news='載入失敗';}
-  saveToDB(s);render();
+    if(isTW){
+      /* 台股新聞：Yahoo Finance RSS（繞過 CORS 用 allOrigins proxy） */
+      const rssUrl = encodeURIComponent(`https://tw.stock.yahoo.com/rss?s=${s.ticker}`);
+      const res = await fetch(`https://api.allorigins.win/get?url=${rssUrl}`,
+        { signal: AbortSignal.timeout(8000) });
+      const data = await res.json();
+      const xml  = new DOMParser().parseFromString(data.contents||'', 'text/xml');
+      const items = [...xml.querySelectorAll('item')].slice(0,6);
+      if(items.length){
+        s.newsItems = items.map(item=>({
+          headline: item.querySelector('title')?.textContent||'',
+          source  : '雅虎財經',
+          url     : item.querySelector('link')?.textContent||'',
+          datetime: Math.floor(new Date(item.querySelector('pubDate')?.textContent||0).getTime()/1000)
+        }));
+        s.news = 'loaded';
+      }else{ s.newsItems=[]; s.news='無近期新聞'; }
+    }else{
+      /* 美股新聞：Finnhub */
+      const from = new Date(Date.now()-7*86400000).toISOString().split('T')[0];
+      const to   = new Date().toISOString().split('T')[0];
+      const data = await callFinnhub('/company-news',{symbol:s.ticker,from,to});
+      if(data?.length){
+        s.newsItems = data.slice(0,6).map(n=>({headline:n.headline,source:n.source,url:n.url,datetime:n.datetime}));
+        s.news = 'loaded';
+      }else{ s.newsItems=[]; s.news='無近期新聞'; }
+    }
+  }catch{ s.news='載入失敗'; }
+  saveToDB(s); render();
 }
 
+/* ══════════════════════
+   財報/財務指標載入
+══════════════════════ */
 async function loadFin(s){
-  if(!apiKey){s.financials='需API';saveToDB(s);render();return;}
-  s.financials='loading';render();
+  const isTW = s.market==='TW';
+  if(!isTW && !apiKey){ s.financials='需Finnhub Key'; saveToDB(s); render(); return; }
+  s.financials='loading'; render();
   try{
-    const r=await callAPI('/stock/metric',{symbol:s.ticker,metric:'all'});
-    const m=r.metric||{};
-    s.finData={
-      pe:m.peBasicExclExtraTTM||m.peTTM||null,eps:m.epsBasicExclExtraAnnual||null,
-      roe:m.roeTTM||null,roa:m.roaTTM||null,
-      debtEq:m['totalDebt/totalEquityAnnual']||null,
-      grossMargin:m.grossMarginTTM||null,netMargin:m.netProfitMarginTTM||null,
-      beta:m.beta||null,w52hi:m['52WeekHigh']||null,w52lo:m['52WeekLow']||null,
-      divYield:m.dividendYieldIndicatedAnnual||null,mktCap:m.marketCapitalization||null,
-    };
-    s.financials='loaded';
-  }catch{s.financials='載入失敗';}
-  saveToDB(s);render();
+    if(isTW){
+      /* 台股財務指標：TWSE 本益比、殖利率等 */
+      const res = await fetch(
+        `https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d?stockNo=${s.ticker}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if(!res.ok) throw new Error();
+      const data = await res.json();
+      const d = data?.[0] || {};
+      s.finData = {
+        pe      : parseFloat(d['本益比'])||null,
+        divYield: parseFloat(d['殖利率(%)'])||null,
+        pbr     : parseFloat(d['股價淨值比'])||null,
+        eps     : parseFloat(d['每股盈餘'])||null,
+      };
+      s.financials = 'loaded';
+    }else{
+      /* 美股財務：Finnhub metric */
+      const r = await callFinnhub('/stock/metric',{symbol:s.ticker,metric:'all'});
+      const m = r.metric||{};
+      s.finData = {
+        pe:m.peBasicExclExtraTTM||m.peTTM||null, eps:m.epsBasicExclExtraAnnual||null,
+        roe:m.roeTTM||null, roa:m.roaTTM||null,
+        debtEq:m['totalDebt/totalEquityAnnual']||null,
+        grossMargin:m.grossMarginTTM||null, netMargin:m.netProfitMarginTTM||null,
+        beta:m.beta||null, w52hi:m['52WeekHigh']||null, w52lo:m['52WeekLow']||null,
+        divYield:m.dividendYieldIndicatedAnnual||null, mktCap:m.marketCapitalization||null,
+      };
+      s.financials = 'loaded';
+    }
+  }catch{ s.financials='載入失敗'; }
+  saveToDB(s); render();
 }
 
-/* Modal 詳情 */
-window.showDetail=(ticker,type)=>{
-  const s=stocks.find(x=>x.ticker===ticker);if(!s)return;
-  document.getElementById('mTk').innerText=ticker;
-  const body=document.getElementById('mBody');
+/* ══════════════════════
+   Modal 詳情
+══════════════════════ */
+window.showDetail = (ticker, type)=>{
+  const s = stocks[curMarket].find(x=>x.ticker===ticker); if(!s) return;
+  document.getElementById('mTk').innerText = ticker;
+  const body = document.getElementById('mBody');
+
   if(type==='news'){
     document.getElementById('mTitle').innerText='📰 近期新聞';
-    body.innerHTML=s.newsItems?.length
-      ?s.newsItems.map(n=>{
-          const dt=n.datetime?new Date(n.datetime*1000).toLocaleDateString('zh-TW'):'';
+    body.innerHTML = s.newsItems?.length
+      ? s.newsItems.map(n=>{
+          const dt = n.datetime ? new Date(n.datetime*1000).toLocaleDateString('zh-TW') : '';
           return`<div class="news-card">
             <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">${n.source||''} ${dt}</div>
             <div>${n.headline||''}</div>
             ${n.url?`<a href="${n.url}" target="_blank" rel="noopener" style="font-size:10px;color:#3b82f6;display:inline-block;margin-top:5px;">查看原文 →</a>`:''}
           </div>`;}).join('')
-      :'<p style="color:#6b7280;font-size:12px;">無新聞資料</p>';
+      : '<p style="color:#6b7280;font-size:12px;">無新聞資料</p>';
+
   }else{
     document.getElementById('mTitle').innerText='📊 財務指標';
-    const d=s.finData||{};
-    const rows=[
-      ['本益比 P/E',d.pe,'',''],['EPS',d.eps,'$',''],
-      ['ROE',d.roe,'','%'],['ROA',d.roa,'','%'],
-      ['淨利率',d.netMargin,'','%'],['毛利率',d.grossMargin,'','%'],
-      ['負債/股東權益',d.debtEq,'','x'],['Beta',d.beta,'',''],
-      ['52週高點',d.w52hi,'$',''],['52週低點',d.w52lo,'$',''],
-      ['股息殖利率',d.divYield,'','%'],['市值(M)',d.mktCap,'$',''],
-    ];
-    body.innerHTML=`<div class="fin-grid">${
+    const d = s.finData||{};
+    const isTW = s.market==='TW';
+    const rows = isTW
+      ?[['本益比 P/E',d.pe,'',''],['EPS',d.eps,'$',''],['殖利率',d.divYield,'','%'],['股價淨值比',d.pbr,'','x']]
+      :[['本益比 P/E',d.pe,'',''],['EPS',d.eps,'$',''],['ROE',d.roe,'','%'],['ROA',d.roa,'','%'],
+        ['淨利率',d.netMargin,'','%'],['毛利率',d.grossMargin,'','%'],['負債/股東權益',d.debtEq,'','x'],
+        ['Beta',d.beta,'',''],['52週高點',d.w52hi,'$',''],['52週低點',d.w52lo,'$',''],
+        ['股息殖利率',d.divYield,'','%'],['市值(M)',d.mktCap,'$','']];
+    body.innerHTML = `<div class="fin-grid">${
       rows.filter(([,v])=>v!=null).map(([l,v,pre,suf])=>
         `<div class="fin-lbl">${l}</div><div class="fin-val">${pre}${Number(v).toFixed(2)}${suf}</div>`
-      ).join('')}</div>`;
+      ).join('')
+    }</div>`;
   }
   document.getElementById('modal').style.display='flex';
 };
-window.closeModal     =id=>{document.getElementById(id).style.display='none';};
-window.handleNewsClick=t=>{const s=stocks.find(x=>x.ticker===t);if(s)loadNews(s);};
-window.handleFinClick =t=>{const s=stocks.find(x=>x.ticker===t);if(s)loadFin(s);};
-window.showFailTime   =t=>{const s=stocks.find(x=>x.ticker===t);if(s)toast(s.updated,4000);};
+window.closeModal      = id=>{ document.getElementById(id).style.display='none'; };
+window.handleNewsClick = t=>{ const s=stocks[curMarket].find(x=>x.ticker===t); if(s)loadNews(s); };
+window.handleFinClick  = t=>{ const s=stocks[curMarket].find(x=>x.ticker===t); if(s)loadFin(s); };
+window.showFailTime    = t=>{ const s=stocks[curMarket].find(x=>x.ticker===t); if(s)toast(s.updated,4000); };
+window.retryNews = t=>{ const s=stocks[curMarket].find(x=>x.ticker===t); if(!s)return; s.news=''; handleNewsClick(t); };
+window.retryFin  = t=>{ const s=stocks[curMarket].find(x=>x.ticker===t); if(!s)return; s.financials=''; handleFinClick(t); };
 
-/* ════════════════════════════════════════
-   K線圖（線圖）
-════════════════════════════════════════ */
-window.showChart=async ticker=>{
-  if(!apiKey){toast('⚠️ 請先設定 API Key');return;}
-  if(!navigator.onLine){toast('📡 離線，無法載入圖表');return;}
-  curTicker=ticker;
-  document.getElementById('chartTit').innerText=`${ticker} 線圖`;
+/* ══════════════════════
+   K線圖（美股 Finnhub / 台股 TWSE）
+══════════════════════ */
+window.showChart = async ticker=>{
+  const s = stocks[curMarket].find(x=>x.ticker===ticker);
+  if(!s) return;
+  if(s.market==='US' && !apiKey){ toast('⚠️ 美股線圖需要 Finnhub API Key'); return; }
+  if(!navigator.onLine){ toast('📡 離線，無法載入線圖'); return; }
+  curTicker = ticker;
+  document.getElementById('chartTit').innerText = `${s.name||ticker} 線圖`;
   document.getElementById('chartModal').style.display='flex';
-  await drawChart(ticker,curDays);
+  await drawChart(ticker, curDays, s.market);
 };
-window.changeRange=async days=>{
-  curDays=days;
+window.changeRange = async days=>{
+  curDays = days;
   [7,30,90,180,365].forEach(d=>{
-    const b=document.getElementById(`r${d}`);
-    if(b)b.className='rbtn'+(d===days?' act':'');
+    const b=document.getElementById(`r${d}`); if(b) b.className='rbtn'+(d===days?' act':'');
   });
-  if(curTicker)await drawChart(curTicker,days);
+  if(curTicker){
+    const s=stocks[curMarket].find(x=>x.ticker===curTicker);
+    if(s) await drawChart(curTicker, days, s.market);
+  }
 };
-async function drawChart(ticker,days){
-  const canvas=document.getElementById('chartCvs');
-  const ctx=canvas.getContext('2d');
-  if(chartInst){chartInst.destroy();chartInst=null;}
+
+async function drawChart(ticker, days, market){
+  const canvas = document.getElementById('chartCvs');
+  const ctx    = canvas.getContext('2d');
+  if(chartInst){ chartInst.destroy(); chartInst=null; }
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle='#6b7280';ctx.font='14px system-ui';ctx.textAlign='center';
-  ctx.fillText('載入中...',canvas.width/2,canvas.height/2);
+  ctx.fillStyle='#6b7280'; ctx.font='14px system-ui'; ctx.textAlign='center';
+  ctx.fillText('載入中...', canvas.width/2, canvas.height/2);
+
   try{
-    const to=Math.floor(Date.now()/1000),from=to-days*86400;
-    const res=days<=7?'60':'D';
-    const data=await callAPI('/stock/candle',{symbol:ticker,resolution:res,from,to});
-    if(data.s!=='ok'||!data.t?.length)throw new Error('無K線資料，可能為非交易日');
-    const ohlc=data.t.map((t,i)=>({x:t*1000,o:data.o[i],h:data.h[i],l:data.l[i],c:data.c[i]}));
-    const vols=data.t.map((t,i)=>({x:t*1000,y:data.v?.[i]||0}));
+    let ohlc=[], vols=[];
+
+    if(market==='TW'){
+      /* 台股K線：TWSE 日K資料 */
+      const today  = new Date();
+      const yyyymm = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}`;
+      const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${yyyymm}01&stockNo=${ticker}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const data = await res.json();
+      if(data.stat!=='OK'||!data.data?.length) throw new Error('無台股K線資料');
+
+      // TWSE 格式：日期,成交股數,成交金額,開盤,最高,最低,收盤,漲跌,漲跌幅
+      ohlc = data.data.slice(-days).map(row=>{
+        const parts = row[0].split('/');
+        const d = new Date(parseInt(parts[0])+1911, parseInt(parts[1])-1, parseInt(parts[2]));
+        return{ x:d.getTime(), o:parseFloat(row[3].replace(/,/g,'')),
+                h:parseFloat(row[4].replace(/,/g,'')), l:parseFloat(row[5].replace(/,/g,'')),
+                c:parseFloat(row[6].replace(/,/g,'')) };
+      }).filter(d=>isGood(d.c));
+      vols = data.data.slice(-days).map((row,i)=>{
+        const parts=row[0].split('/');
+        const d=new Date(parseInt(parts[0])+1911,parseInt(parts[1])-1,parseInt(parts[2]));
+        return{ x:d.getTime(), y:parseInt(row[1].replace(/,/g,''))||0 };
+      });
+    }else{
+      /* 美股K線：Finnhub */
+      const to=Math.floor(Date.now()/1000), from=to-days*86400;
+      const res=days<=7?'60':'D';
+      const data=await callFinnhub('/stock/candle',{symbol:ticker,resolution:res,from,to});
+      if(data.s!=='ok'||!data.t?.length) throw new Error('無K線資料');
+      ohlc=data.t.map((t,i)=>({x:t*1000,o:data.o[i],h:data.h[i],l:data.l[i],c:data.c[i]}));
+      vols=data.t.map((t,i)=>({x:t*1000,y:data.v?.[i]||0}));
+    }
+
+    if(!ohlc.length) throw new Error('無資料');
     canvas.style.height='420px';
-    chartInst=new Chart(ctx,{
-      data:{datasets:[
-        {type:'candlestick',label:ticker,data:ohlc,
-         color:{up:'#ff4d4f',down:'#22c55e',unchanged:'#9ca3af'},yAxisID:'y'},
-        {type:'bar',label:'成交量',data:vols,yAxisID:'y2',
-         backgroundColor:ohlc.map(d=>d.c>=d.o?'rgba(255,77,79,.35)':'rgba(34,197,94,.35)')}
+    chartInst = new Chart(ctx,{
+      data:{ datasets:[
+        { type:'candlestick', label:ticker, data:ohlc,
+          color:{up:'#ff4d4f',down:'#22c55e',unchanged:'#9ca3af'}, yAxisID:'y' },
+        { type:'bar', label:'成交量', data:vols, yAxisID:'y2',
+          backgroundColor:ohlc.map(d=>d.c>=d.o?'rgba(255,77,79,.35)':'rgba(34,197,94,.35)') }
       ]},
       options:{
-        responsive:true,maintainAspectRatio:false,interaction:{mode:'index'},
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
+        responsive:true, maintainAspectRatio:false, interaction:{mode:'index'},
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>{
           if(c.dataset.type==='candlestick'){const d=c.raw;return[`開:${d.o?.toFixed(2)}  高:${d.h?.toFixed(2)}`,`低:${d.l?.toFixed(2)}  收:${d.c?.toFixed(2)}`];}
-          return`量:${fVol(c.raw.y)}`;
+          return`量:${market==='TW'?fVolTW(c.raw.y):fVol(c.raw.y)}`;
         }}}},
         scales:{
-          x:{type:'time',time:{unit:days<=7?'hour':(days<=90?'day':'week')},ticks:{color:'#6b7280',font:{size:10}},grid:{color:'#1f2937'}},
-          y:{position:'right',ticks:{color:'#9ca3af',font:{size:10}},grid:{color:'#1f2937'}},
-          y2:{position:'left',max:()=>Math.max(...vols.map(v=>v.y))*4,ticks:{display:false},grid:{display:false}}
+          x:{ type:'time', time:{unit:days<=7?'hour':(days<=90?'day':'week')},
+              ticks:{color:'#6b7280',font:{size:10}}, grid:{color:'#1f2937'} },
+          y:{ position:'right', ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'#1f2937'} },
+          y2:{ position:'left', max:()=>Math.max(...vols.map(v=>v.y))*4,
+               ticks:{display:false}, grid:{display:false} }
         }
       }
     });
   }catch(e){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle='#ef4444';ctx.font='13px system-ui';ctx.textAlign='center';
-    ctx.fillText(`⚠️ ${e.message}`,canvas.width/2,200);
+    ctx.fillStyle='#ef4444'; ctx.font='13px system-ui'; ctx.textAlign='center';
+    ctx.fillText(`⚠️ ${e.message}`, canvas.width/2, 200);
   }
 }
 
-/* ════════════════════════════════════════
+/* ══════════════════════
    CSV 匯入 / 匯出
-════════════════════════════════════════ */
+══════════════════════ */
 function parseCSVLine(line){
-  const out=[];let cur='',inQ=false;
+  const out=[]; let cur='',inQ=false;
   for(const ch of line){
-    if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){out.push(cur.trim());cur='';}else{cur+=ch;}
+    if(ch==='"'){inQ=!inQ;} else if(ch===','&&!inQ){out.push(cur.trim());cur='';} else{cur+=ch;}
   }
-  out.push(cur.trim());return out;
+  out.push(cur.trim()); return out;
 }
-window.importCSV=e=>{
-  const file=e.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=evt=>{
-    const lines=evt.target.result.split('\n').slice(1);
-    let added=0,updated=0;
+
+window.importCSV = e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = evt=>{
+    const lines = evt.target.result.split('\n').slice(1);
+    let added=0, updated=0;
     lines.forEach(raw=>{
-      if(!raw.trim())return;
-      const c=parseCSVLine(raw);
-      const ticker=(c[0]||'').toUpperCase();if(!ticker)return;
-      let s=stocks.find(x=>x.ticker===ticker);
+      if(!raw.trim()) return;
+      const c = parseCSVLine(raw);
+      const ticker = (c[0]||'').toUpperCase(); if(!ticker) return;
+      let s = stocks[curMarket].find(x=>x.ticker===ticker);
       if(!s){
-        /* CSV 新增：name 從 CSV 取，category 一律清空讓 API 取得
-           （不設 userCat=true，確保 updateStock 能用 API 覆寫分類） */
-        s=mkStock(ticker,c[1]||ticker,'');
-        s.userCat=false;   // ← 關鍵：CSV 來源不標記 userCat
-        stocks.push(s);added++;
-      }else{updated++;}
-
-      /* 名稱：CSV 有值就更新 */
-      if(c[1]&&c[1].trim())s.name=c[1].trim();
-
-      /* 分類：CSV 欄位的值只作「暫存」參考，不標記 userCat
-         讓 updateStock 呼叫 API 取得正確行業分類後覆寫
-         例外：若 CSV 分類欄是真實中文行業名稱（不在垃圾清單），
-               暫時存入，但仍讓 API 在下次更新時覆寫           */
+        s = mkStock(ticker, c[1]||ticker, '', curMarket);
+        s.userCat = false;
+        stocks[curMarket].push(s); added++;
+      }else{ updated++; }
+      if(c[1]&&c[1].trim()) s.name = c[1].trim();
       const csvCat=(c[2]||'').trim();
-      if(csvCat && !JUNK_CT.has(csvCat)){
-        s.category=csvCat;
-        /* 不設 s.userCat=true，讓 updateStock 仍可用 API 覆寫 */
-      }else{
-        s.category='';   // 清空，等 API 補全
-      }
-      s.userCat=false;   // CSV 匯入一律不鎖定，讓 API 可覆寫
-
-      s.price  =parseFloat(c[3])||s.price;
-      s.change =parseFloat(c[4])||s.change;
-      s.open   =parseFloat(c[5])||s.open;
-      s.high   =parseFloat(c[6])||s.high;
-      s.low    =parseFloat(c[7])||s.low;
-      s.volume =parseFloat(c[8])||s.volume;
-      if(c[9])s.updated=c[9];
+      if(csvCat&&!JUNK_CT.has(csvCat)){ s.category=csvCat; } else{ s.category=''; }
+      s.userCat=false;
+      s.price =parseFloat(c[3])||s.price; s.change=parseFloat(c[4])||s.change;
+      s.open  =parseFloat(c[5])||s.open;  s.high  =parseFloat(c[6])||s.high;
+      s.low   =parseFloat(c[7])||s.low;   s.volume=parseFloat(c[8])||s.volume;
+      if(c[9]) s.updated=c[9];
       saveToDB(s);
     });
     render();
     toast(`📥 匯入：新增 ${added}，更新 ${updated} 筆`);
-    /* 匯入後立即更新，補全所有分類 */
-    if(apiKey)setTimeout(updateAll,500);
+    setTimeout(updateAll, 500);
   };
-  reader.readAsText(file,'UTF-8');e.target.value='';
+  reader.readAsText(file,'UTF-8'); e.target.value='';
 };
-window.exportCSV=()=>{
-  let csv='\uFEFF代號,名稱,分類,成交,漲跌%,開盤,最高,最低,成交量,更新時間\n';
-  stocks.forEach(s=>{
-    csv+=[s.ticker,`"${(s.name||'').replace(/"/g,'""')}"`,`"${(s.category||'').replace(/"/g,'""')}"`,
-      f2(s.price),f2(s.change),f2(s.open),f2(s.high),f2(s.low),s.volume||0,
-      `"${(s.updated||'').replace(/"/g,'""')}"`].join(',')+'\n';
+
+window.exportCSV = ()=>{
+  const m = curMarket;
+  let csv = '\uFEFF代號,名稱,分類,成交,漲跌%,開盤,最高,最低,成交量,更新時間\n';
+  stocks[m].forEach(s=>{
+    csv += [s.ticker,
+      `"${(s.name||'').replace(/"/g,'""')}"`,
+      `"${(s.category||'').replace(/"/g,'""')}"`,
+      f2(s.price), f2(s.change), f2(s.open), f2(s.high), f2(s.low),
+      s.volume||0, `"${(s.updated||'').replace(/"/g,'""')}"`
+    ].join(',') + '\n';
   });
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-  a.download=`stocks_${new Date().toISOString().split('T')[0]}.csv`;
-  a.click();toast('📤 匯出完成');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download = `stocks_${m}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); toast(`📤 ${m==='US'?'美股':'台股'} CSV 匯出完成`);
 };
 
-/* OCR — 支援多選最多 8 張圖片 */
-window.handleOCR=async event=>{
-  const files=Array.from(event.target.files||[]).slice(0,8);
-  if(!files.length)return;
-  const btn=document.getElementById('ocrBtn');
-  btn.disabled=true;
-
-  const total=files.length;
-  let allMatched=0;
-  const allNewS=[];
-
+/* ══════════════════════
+   OCR（多圖，自動判斷市場）
+══════════════════════ */
+window.handleOCR = async event=>{
+  const files = Array.from(event.target.files||[]).slice(0,8);
+  if(!files.length) return;
+  const btn = document.getElementById('ocrBtn');
+  btn.disabled = true;
+  const total = files.length; let allMatched=0; const allNewS=[];
   try{
-    /* 建立共用 Tesseract worker（不重複建立，提升速度） */
-    const wk=await Tesseract.createWorker('eng');
-
+    const wk = await Tesseract.createWorker('eng');
     for(let i=0;i<files.length;i++){
-      btn.innerHTML=`<span class="spin"></span> 辨識 ${i+1}/${total}`;
+      btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
       try{
-        const{data:{text}}=await wk.recognize(files[i]);
+        const{data:{text}} = await wk.recognize(files[i]);
         let matched=0;
         text.split('\n').forEach(line=>{
-          const m=line.match(/\b([A-Z]{2,6})\b.*?([\d,.]+)/);
-          if(!m)return;
-          const ticker=m[1],price=parseFloat(m[2].replace(/,/g,''));
-          if(!price||isNaN(price))return;
-          let s=stocks.find(x=>x.ticker===ticker);
-          if(s){s.price=price;saveToDB(s);matched++;}
+          /* 台股：4-6位數字 */
+          const mTW = line.match(/\b(\d{4,6})\b.*?([\d,.]+)/);
+          /* 美股：2-6個大寫字母 */
+          const mUS = line.match(/\b([A-Z]{2,6})\b.*?([\d,.]+)/);
+          const m   = curMarket==='TW' ? (mTW||mUS) : (mUS||mTW);
+          if(!m) return;
+          const ticker = m[1];
+          const price  = parseFloat(m[2].replace(/,/g,''));
+          if(!price||isNaN(price)) return;
+          let s = stocks[curMarket].find(x=>x.ticker===ticker);
+          if(s){ s.price=price; saveToDB(s); matched++; }
           else{
-            const ns=mkStock(ticker,ticker,'未分類');
-            ns.price=price;
-            ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
-            stocks.push(ns);saveToDB(ns);allNewS.push(ns);matched++;
+            const ns = mkStock(ticker, ticker, '', curMarket);
+            ns.price=price; ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
+            stocks[curMarket].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
           }
         });
-        allMatched+=matched;
-        render();
+        allMatched+=matched; render();
         if(matched>0) toast(`第${i+1}張：識別 ${matched} 筆`);
-      }catch(imgErr){
-        console.warn(`第${i+1}張 OCR 失敗:`,imgErr);
-        toast(`⚠️ 第${i+1}張辨識失敗，繼續下一張`);
-      }
+      }catch(imgErr){ toast(`⚠️ 第${i+1}張辨識失敗`); }
     }
-
-    await wk.terminate();
-    render();
-    toast(allMatched>0
-      ?`📸 ${total}張圖片共識別 ${allMatched} 筆資料`
-      :'📸 所有圖片均未識別到股票代號',3500);
-
-    /* 自動更新新增的股票，補全名稱和分類 */
-    if(apiKey&&allNewS.length){
-      for(const s of allNewS){await updateStock(s);render();}
-    }
-  }catch(e){
-    console.error('OCR 錯誤:',e);
-    toast('❌ OCR 初始化失敗，請重試');
-  }
-
-  btn.innerText='📸 OCR';
-  btn.disabled=false;
-  event.target.value='';
+    await wk.terminate(); render();
+    toast(allMatched>0 ? `📸 共識別 ${allMatched} 筆` : '📸 未識別到代號', 3500);
+    if(allNewS.length){ for(const s of allNewS){await updateStock(s);render();} }
+  }catch{ toast('❌ OCR 初始化失敗'); }
+  btn.innerText='📸 OCR'; btn.disabled=false; event.target.value='';
 };
 
-/* 搜尋 */
-document.getElementById('srch').addEventListener('input',e=>{
-  const q=e.target.value.toUpperCase().trim();
-  render(q?stocks.filter(s=>s.ticker.includes(q)||(s.name||'').toUpperCase().includes(q)||(s.category||'').toUpperCase().includes(q)):null);
+/* ══════════════════════
+   搜尋
+══════════════════════ */
+document.getElementById('srch').addEventListener('input', e=>{
+  const q = e.target.value.toUpperCase().trim();
+  render(q ? stocks[curMarket].filter(s=>
+    s.ticker.includes(q) ||
+    (s.name||'').toUpperCase().includes(q) ||
+    (s.category||'').toUpperCase().includes(q)
+  ) : null);
 });
 
-/* ════════════════════════════════════════
-   渲染輔助按鈕
-════════════════════════════════════════ */
-const BTN_SZ='font-size:12px;padding:5px 9px;border-radius:5px;font-weight:700;';
+/* ══════════════════════
+   渲染輔助
+══════════════════════ */
+const BTN_SZ = 'font-size:12px;padding:5px 9px;border-radius:5px;font-weight:700;';
 function mkBtn(label,bg,oc,color='white'){
-  return`<button onclick="${oc}" style="background:${bg};color:${color};${BTN_SZ}">${label}</button>`;
+  return `<button onclick="${oc}" style="background:${bg};color:${color};${BTN_SZ}">${label}</button>`;
 }
-function mkMuted(txt){return`<span style="font-size:11px;color:#6b7280;">${txt}</span>`;}
-function mkSpin(){return`<span style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:3px;"><span class="spin"></span>讀取</span>`;}
-
-/* 新聞重試：把狀態清空後重新呼叫 loadNews */
-window.retryNews=t=>{
-  const s=stocks.find(x=>x.ticker===t);
-  if(!s)return;
-  s.news='';   // 清空狀態，讓按鈕恢復「載入」
-  handleNewsClick(t);
-};
-/* 財報重試：把狀態清空後重新呼叫 loadFin */
-window.retryFin=t=>{
-  const s=stocks.find(x=>x.ticker===t);
-  if(!s)return;
-  s.financials='';
-  handleFinClick(t);
-};
+function mkMuted(txt){ return `<span style="font-size:11px;color:#6b7280;">${txt}</span>`; }
+function mkSpin(){ return `<span style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:3px;"><span class="spin"></span>讀取</span>`; }
 
 function newsBtn(s){
   const t=s.ticker;
-  if(!s.news||s.news==='')                      return mkBtn('載入','#1d4ed8',`handleNewsClick('${t}')`);
-  if(s.news==='loading')                         return mkSpin();
-  if(s.news==='loaded'&&s.newsItems?.length>0)  return mkBtn(`新聞${s.newsItems.length}`,'#15803d',`showDetail('${t}','news')`);
-  if(s.news==='無近期新聞')                      return mkMuted('無新聞');
-  /* 載入失敗 / 需API / 其他錯誤 → 顯示橘色「重試」按鈕 */
+  if(!s.news||s.news==='')                     return mkBtn('載入','#1d4ed8',`handleNewsClick('${t}')`);
+  if(s.news==='loading')                        return mkSpin();
+  if(s.news==='loaded'&&s.newsItems?.length>0) return mkBtn(`新聞${s.newsItems.length}`,'#15803d',`showDetail('${t}','news')`);
+  if(s.news==='無近期新聞')                     return mkMuted('無新聞');
   return mkBtn('重試','#b45309',`retryNews('${t}')`);
 }
 function finBtn(s){
   const t=s.ticker;
-  if(!s.financials||s.financials==='')          return mkBtn('載入','#1d4ed8',`handleFinClick('${t}')`);
-  if(s.financials==='loading')                  return mkSpin();
-  if(s.financials==='loaded')                   return mkBtn('財報','#15803d',`showDetail('${t}','financials')`);
-  /* 載入失敗 / 需API / 其他錯誤 → 顯示橘色「重試」按鈕 */
+  if(!s.financials||s.financials==='')         return mkBtn('載入','#1d4ed8',`handleFinClick('${t}')`);
+  if(s.financials==='loading')                 return mkSpin();
+  if(s.financials==='loaded')                  return mkBtn('財報','#15803d',`showDetail('${t}','financials')`);
   return mkBtn('重試','#b45309',`retryFin('${t}')`);
 }
 
-/* ════════════════════════════════════════
-   ① ② ③ ④ 主渲染函式
-════════════════════════════════════════ */
+/* ══════════════════════
+   主渲染
+══════════════════════ */
 function render(list){
-  const src=list||stocks;
-  const sorted=[...src].sort((a,b)=>
-    (a.category||'未分類').localeCompare(b.category||'未分類','zh-Hant')||
+  const src    = list || stocks[curMarket];
+  const isTW   = curMarket==='TW';
+  const sorted = [...src].sort((a,b)=>
+    (a.category||'未分類').localeCompare(b.category||'未分類','zh-Hant') ||
     a.ticker.localeCompare(b.ticker)
   );
 
-  /* ① 更新追蹤總數（永遠用全部 stocks 計算，而非過濾後的清單） */
-  updateCount();
+  /* 更新數量 */
+  updateTabCounts();
 
-  const container=document.getElementById('dataRows');
-  container.innerHTML='';
+  const container = document.getElementById('dataRows');
+  container.innerHTML = '';
 
   sorted.forEach(s=>{
-    const cv=parseFloat(s.change||0);
-    /* 成交/漲跌色 */
-    const priceCls=cv>0?'up':(cv<0?'dn':'flat');
+    const cv       = parseFloat(s.change||0);
+    const priceCls = cv>0?'up':(cv<0?'dn':'flat');
 
-    /* ③ 開盤/最高/最低 vs 前日收盤 */
-    const pc=Number(s.prevClose||0);
-    function ohlcCls(val){
-      if(!pc||!val)return'flat';
-      return val>pc?'up':(val<pc?'dn':'flat');
-    }
+    /* 開盤/最高/最低 vs 前日收盤 */
+    const pc = Number(s.prevClose||0);
+    function ohlcCls(val){ if(!pc||!val)return'flat'; return val>pc?'up':(val<pc?'dn':'flat'); }
 
-    /* ③ 成交量 vs 前日成交量 */
-    const pv=Number(s.prevVol||0);
-    const curV=Number(s.volume||0);
+    /* 成交量顏色 */
+    const pv=Number(s.prevVol||0), curV=Number(s.volume||0);
     let volCls='vol-flat';
-    if(pv>0&&curV>0){volCls=curV>pv?'vol-up':(curV<pv?'vol-dn':'vol-flat');}
+    if(pv>0&&curV>0){ volCls=curV>pv?'vol-up':(curV<pv?'vol-dn':'vol-flat'); }
 
-    const catOk=s.category&&s.category.trim()!==''&&s.category!=='未分類';
+    const catOk      = s.category && s.category.trim()!=='' && s.category!=='未分類';
     const catDisplay = catOk ? s.category : (s.needUpdate&&(!s.category||s.category.trim()==='') ? '取得中...' : '未分類');
     const catColor   = catOk ? 'color:#e2e8f0;' : (s.needUpdate&&(!s.category||s.category.trim()==='') ? 'color:#6b7280;font-style:italic;' : 'color:#f87171;');
 
-    const nm=(s.name||s.ticker).substring(0,18)+((s.name||'').length>18?'…':'');
-    const nameIsTemp=(s.name||'')===s.ticker;
+    const nm         = (s.name||s.ticker).substring(0,18) + ((s.name||'').length>18?'…':'');
+    const nameIsTemp = (s.name||'')===s.ticker;
+
+    /* 台股代號顏色 */
+    const tkColor = isTW ? 'color:#f87171;' : 'color:#34d399;';
 
     let tHtml;
     if((s.updated||'-').startsWith('⚠️')){
@@ -1052,10 +1275,13 @@ function render(list){
       tHtml=`<span style="font-size:10px;color:#6b7280;">${s.updated||'-'}</span>`;
     }
 
-    const row=document.createElement('div');
-    row.className='row';
-    row.innerHTML=`
-      <div class="col-tk w-tk" style="color:#34d399;font-weight:700;font-size:13px;">${s.ticker}</div>
+    /* 成交量格式（台股單位：張） */
+    const volDisplay = isTW ? fVolTW(s.volume) : fVol(s.volume);
+
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="col-tk w-tk" style="${tkColor}font-weight:700;font-size:13px;">${s.ticker}</div>
       <div class="w-nm" title="${(s.name||'').replace(/"/g,'&quot;')}"
            style="${nameIsTemp?'color:#fb923c;font-style:italic;':''}">${nm}</div>
       <div class="w-ct" style="${catColor}font-size:12px;">${catDisplay}</div>
@@ -1064,13 +1290,11 @@ function render(list){
       <div class="w-oc ${ohlcCls(s.open)}">${f2(s.open)}</div>
       <div class="w-oc ${ohlcCls(s.high)}">${f2(s.high)}</div>
       <div class="w-oc ${ohlcCls(s.low)}">${f2(s.low)}</div>
-      <div class="w-vl ${volCls}">${fVol(s.volume)}</div>
+      <div class="w-vl ${volCls}">${volDisplay}</div>
       <div class="w-tm">${tHtml}</div>
       <div class="w-nw">${newsBtn(s)}</div>
       <div class="w-fn">${finBtn(s)}</div>
-      <div class="w-ch2">
-        ${mkBtn('線圖','#3f3f46',`showChart('${s.ticker}')`)}
-      </div>
+      <div class="w-ch2">${mkBtn('線圖','#3f3f46',`showChart('${s.ticker}')`)}</div>
       <div class="w-ac">
         ${mkBtn('更新','#059669',`updateOne('${s.ticker}')` ,'black')}
         ${mkBtn('刪除','#7f1d1d',`deleteStock('${s.ticker}')` ,'#fca5a5')}
@@ -1079,8 +1303,7 @@ function render(list){
   });
 }
 
-window.updateAll=updateAll;
-window.render   =render;
+window.render = render;
 
 })();
 </script>
