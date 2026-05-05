@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.0</title>
+  <title>投資大師 Pro MAX v13.1</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.0</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.1</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -1084,9 +1084,113 @@ async function drawChart(ticker, days, market){
   }
 }
 
-/* ══════════════════════
-   CSV 匯入 / 匯出
-══════════════════════ */
+/* ══════════════════════════════════════════════
+   台股名稱 → 代號 反查系統
+   資料來源：TWSE + TPEX 完整上市/上櫃清單
+   快取到 twNameMap，格式： { '台積電': '2330', '鴻海': '2317', ... }
+══════════════════════════════════════════════ */
+let twNameMap = null;       // 快取：{ 公司簡稱/名稱: 股票代號 }
+let twNameMapReady = false;
+
+async function buildTWNameMap(){
+  if(twNameMapReady) return twNameMap;
+  twNameMap = {};
+  try{
+    /* TWSE 上市公司 */
+    const r1 = await fetch('https://openapi.twse.com.tw/v1/opendata/t187ap03_L',
+      { signal: AbortSignal.timeout(10000) });
+    if(r1.ok){
+      const d = await r1.json();
+      d.forEach(item=>{
+        const code  = (item['公司代號']||item['股票代號']||'').trim();
+        const full  = (item['公司名稱']||'').trim();
+        const abbr  = (item['公司簡稱']||'').trim();
+        if(!code) return;
+        if(full)  twNameMap[full]  = code;
+        if(abbr)  twNameMap[abbr]  = code;
+        /* 去掉「股份有限公司」「公司」等後綴也存一份 */
+        const short = full.replace(/股份有限公司|有限公司|公司$/,'').trim();
+        if(short && short!==full) twNameMap[short] = code;
+      });
+    }
+  }catch(e){ console.warn('TWSE 上市名稱表失敗:',e); }
+
+  try{
+    /* TPEX 上櫃公司 */
+    const r2 = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { signal: AbortSignal.timeout(10000) });
+    if(r2.ok){
+      const d = await r2.json();
+      d.forEach(item=>{
+        const code = (item['SecuritiesCompanyCode']||item['CompanyCode']||'').trim();
+        const full = (item['CompanyName']||'').trim();
+        const abbr = (item['CompanyAbbreviation']||'').trim();
+        if(!code) return;
+        if(full) twNameMap[full] = code;
+        if(abbr) twNameMap[abbr] = code;
+        const short = full.replace(/股份有限公司|有限公司|公司$/,'').trim();
+        if(short && short!==full) twNameMap[short] = code;
+      });
+    }
+  }catch(e){ console.warn('TPEX 上櫃名稱表失敗:',e); }
+
+  twNameMapReady = true;
+  console.log(`[TW名稱表] 共載入 ${Object.keys(twNameMap).length} 筆`);
+  return twNameMap;
+}
+
+/* 從 OCR 文字反查台股代號
+   策略：
+   1. 完全比對（「台積電」「鴻海精密」）
+   2. 部分比對（OCR 文字包含名稱，或名稱包含 OCR 文字）
+   3. 最短優先，避免誤判
+   回傳 { ticker, name } 或 null
+*/
+function lookupTWNameToTicker(ocrText){
+  if(!twNameMap) return null;
+  const text = ocrText.trim();
+  if(text.length < 2) return null;
+
+  /* 1. 完全比對 */
+  if(twNameMap[text]) return { ticker: twNameMap[text], name: text };
+
+  /* 2. 在對照表裡找包含此文字的名稱（例如 OCR 識別到「台積」→找到「台積電」） */
+  let bestMatch = null, bestLen = Infinity;
+  for(const [name, code] of Object.entries(twNameMap)){
+    const matched = name.includes(text) || text.includes(name);
+    if(matched && name.length < bestLen){
+      bestLen = name.length;
+      bestMatch = { ticker: code, name };
+    }
+  }
+  return bestMatch;
+}
+
+/* 從整段 OCR 文字掃描所有可能的台股名稱
+   切割成 2-8 個字的滑動視窗，逐一查詢
+*/
+function scanTWNamesFromText(fullText){
+  if(!twNameMap) return [];
+  const results = [];
+  const seen = new Set();
+
+  /* 先以行為單位 */
+  const lines = fullText.split(/[\n\r]+/).map(l=>l.trim()).filter(l=>l.length>=2);
+
+  for(const line of lines){
+    /* 嘗試 2-8 字的滑動視窗 */
+    for(let len=8; len>=2; len--){
+      for(let i=0; i<=line.length-len; i++){
+        const chunk = line.substring(i, i+len);
+        if(twNameMap[chunk] && !seen.has(twNameMap[chunk])){
+          seen.add(twNameMap[chunk]);
+          results.push({ ticker: twNameMap[chunk], name: chunk });
+        }
+      }
+    }
+  }
+  return results;
+}
 function parseCSVLine(line){
   const out=[]; let cur='',inQ=false;
   for(const ch of line){
@@ -1145,49 +1249,158 @@ window.exportCSV = ()=>{
   a.click(); toast(`📤 ${m==='US'?'美股':'台股'} CSV 匯出完成`);
 };
 
-/* ══════════════════════
-   OCR（多圖，自動判斷市場）
-══════════════════════ */
-window.handleOCR = async event=>{
+/* ══════════════════════════════════════════════
+   OCR — 多圖（最多8張）
+   台股模式：
+     ① Tesseract 繁中+英雙語引擎
+     ② 先掃數字代號（4-6位）
+     ③ 再用台股名稱對照表反查中文股名
+   美股模式：
+     ① Tesseract 英語引擎
+     ② 掃大寫字母代號（2-6位）
+══════════════════════════════════════════════ */
+window.handleOCR = async event => {
   const files = Array.from(event.target.files||[]).slice(0,8);
   if(!files.length) return;
-  const btn = document.getElementById('ocrBtn');
+  const btn   = document.getElementById('ocrBtn');
   btn.disabled = true;
-  const total = files.length; let allMatched=0; const allNewS=[];
+  const isTW  = curMarket === 'TW';
+  const total = files.length;
+  let allMatched = 0;
+  const allNewS  = [];
+
   try{
-    const wk = await Tesseract.createWorker('eng');
-    for(let i=0;i<files.length;i++){
+    /* 台股：預先載入名稱對照表（背景非同步，不阻塞） */
+    if(isTW){
+      btn.innerHTML = `<span class="spin"></span> 載入名稱表...`;
+      await buildTWNameMap();
+    }
+
+    /* 台股用繁中+英雙語；美股用英語 */
+    const lang = isTW ? 'chi_tra+eng' : 'eng';
+    btn.innerHTML = `<span class="spin"></span> 初始化...`;
+    const wk = await Tesseract.createWorker(lang);
+
+    for(let i = 0; i < files.length; i++){
       btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
       try{
-        const{data:{text}} = await wk.recognize(files[i]);
-        let matched=0;
-        text.split('\n').forEach(line=>{
-          /* 台股：4-6位數字 */
-          const mTW = line.match(/\b(\d{4,6})\b.*?([\d,.]+)/);
-          /* 美股：2-6個大寫字母 */
-          const mUS = line.match(/\b([A-Z]{2,6})\b.*?([\d,.]+)/);
-          const m   = curMarket==='TW' ? (mTW||mUS) : (mUS||mTW);
-          if(!m) return;
-          const ticker = m[1];
-          const price  = parseFloat(m[2].replace(/,/g,''));
-          if(!price||isNaN(price)) return;
-          let s = stocks[curMarket].find(x=>x.ticker===ticker);
-          if(s){ s.price=price; saveToDB(s); matched++; }
-          else{
-            const ns = mkStock(ticker, ticker, '', curMarket);
-            ns.price=price; ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
-            stocks[curMarket].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
-          }
-        });
-        allMatched+=matched; render();
-        if(matched>0) toast(`第${i+1}張：識別 ${matched} 筆`);
-      }catch(imgErr){ toast(`⚠️ 第${i+1}張辨識失敗`); }
+        const { data:{ text } } = await wk.recognize(files[i]);
+        let matched = 0;
+
+        /* ── 台股辨識 ── */
+        if(isTW){
+          const addedTickers = new Set();
+
+          /* ① 掃數字代號（4-6位，可能附有價格） */
+          text.split('\n').forEach(line=>{
+            const m = line.match(/\b(\d{4,6}[A-Z]?)\b/);
+            if(!m) return;
+            const ticker = m[1];
+            /* 嘗試取同行的數字作為價格 */
+            const priceM = line.replace(ticker,'').match(/([\d,]+\.?\d*)/);
+            const price  = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
+            if(addedTickers.has(ticker)) return;
+            addedTickers.add(ticker);
+            let s = stocks['TW'].find(x=>x.ticker===ticker);
+            if(s){
+              if(price>0) s.price = price;
+              saveToDB(s); matched++;
+            }else{
+              const ns = mkStock(ticker, ticker, '', 'TW');
+              if(price>0) ns.price = price;
+              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+              stocks['TW'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
+            }
+          });
+
+          /* ② 台股名稱反查（滑動視窗掃全文） */
+          const nameResults = scanTWNamesFromText(text);
+          nameResults.forEach(({ ticker, name })=>{
+            if(addedTickers.has(ticker)) return; // 已被代號辨識加入
+            addedTickers.add(ticker);
+            let s = stocks['TW'].find(x=>x.ticker===ticker);
+            if(s){
+              /* 已存在：更新名稱（如果原本是代號暫代） */
+              if(!s.name || s.name===s.ticker) s.name = name;
+              saveToDB(s); matched++;
+            }else{
+              /* 新增：名稱已知，代號從對照表取得 */
+              const ns = mkStock(ticker, name, '', 'TW');
+              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+              stocks['TW'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
+            }
+          });
+
+        /* ── 美股辨識 ── */
+        }else{
+          text.split('\n').forEach(line=>{
+            const mUS = line.match(/\b([A-Z]{2,6})\b/);
+            if(!mUS) return;
+            const ticker = mUS[1];
+            /* 過濾常見英文非股票單字 */
+            const skipWords = new Set(['THE','AND','FOR','FROM','THIS','THAT','WITH',
+              'HAVE','WILL','YOUR','ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE',
+              'OUR','OUT','DAY','GET','HAS','HIM','HIS','HOW','ITS','MAY','NEW',
+              'NOW','OLD','SEE','TWO','WHO','BOY','DID','ITS','LET','PUT','SAY',
+              'SHE','TOO','USE','USD','NYSE','NASDAQ','ETF','IPO','CEO','CFO',
+              'USD','HKD','TWD','JPY','EUR','GBP','AUD']);
+            if(skipWords.has(ticker)) return;
+            const priceM = line.replace(ticker,'').match(/([\d,]+\.?\d{2})/);
+            const price  = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
+            let s = stocks['US'].find(x=>x.ticker===ticker);
+            if(s){
+              if(price>0) s.price = price;
+              saveToDB(s); matched++;
+            }else{
+              const ns = mkStock(ticker, ticker, '', 'US');
+              if(price>0) ns.price = price;
+              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+              stocks['US'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
+            }
+          });
+        }
+
+        allMatched += matched;
+        render();
+        if(matched > 0) toast(`第${i+1}張：識別 ${matched} 筆`);
+        else toast(`第${i+1}張：未識別到${isTW?'台股':'美股'}代號`);
+
+      }catch(imgErr){
+        console.warn(`第${i+1}張 OCR 失敗:`, imgErr);
+        toast(`⚠️ 第${i+1}張辨識失敗，繼續下一張`);
+      }
+    }/* end for */
+
+    await wk.terminate();
+    render();
+
+    if(allMatched > 0){
+      toast(`📸 ${total}張圖片共識別 ${allMatched} 筆（含股名反查）`, 3500);
+    }else{
+      const hint = isTW
+        ? '📸 未識別到台股代號或公司名稱\n（支援：數字代號 4-6位 或 公司名稱）'
+        : '📸 未識別到美股代號';
+      toast(hint, 4000);
     }
-    await wk.terminate(); render();
-    toast(allMatched>0 ? `📸 共識別 ${allMatched} 筆` : '📸 未識別到代號', 3500);
-    if(allNewS.length){ for(const s of allNewS){await updateStock(s);render();} }
-  }catch{ toast('❌ OCR 初始化失敗'); }
-  btn.innerText='📸 OCR'; btn.disabled=false; event.target.value='';
+
+    /* 自動 updateStock 補全資料（名稱/分類/報價） */
+    if(allNewS.length){
+      toast(`⏳ 正在補全 ${allNewS.length} 筆新資料...`, 3000);
+      for(const s of allNewS){
+        await updateStock(s);
+        render();
+      }
+      toast(`✅ ${allNewS.length} 筆新股票資料已補全`);
+    }
+
+  }catch(e){
+    console.error('OCR 初始化失敗:', e);
+    toast('❌ OCR 初始化失敗，請重試');
+  }
+
+  btn.innerText = '📸 OCR';
+  btn.disabled  = false;
+  event.target.value = '';
 };
 
 /* ══════════════════════
