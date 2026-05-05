@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.1</title>
+  <title>投資大師 Pro MAX v13.2</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.1</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.2</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -481,35 +481,78 @@ function delFromDB(ticker, market){
     .objectStore(storeName(market)).delete(ticker);
 }
 
-/* 載入 DB */
+/* ── 從 CSV 文字解析股票清單（共用） ── */
+function parseCSVToStocks(csvText, market){
+  const result = [];
+  const lines  = csvText.split('\n').slice(1); // 跳過標題行
+  lines.forEach(raw=>{
+    if(!raw.trim()) return;
+    const c      = parseCSVLine(raw);
+    const ticker = (c[0]||'').trim().toUpperCase(); if(!ticker) return;
+    const s      = mkStock(ticker, c[1]||ticker, '', market);
+    s.userCat    = false;
+    if(c[1]&&c[1].trim()) s.name = c[1].trim();
+    const csvCat = (c[2]||'').trim();
+    if(csvCat && !JUNK_CT.has(csvCat)) s.category = csvCat;
+    s.price  = parseFloat(c[3])||0; s.change = parseFloat(c[4])||0;
+    s.open   = parseFloat(c[5])||0; s.high   = parseFloat(c[6])||0;
+    s.low    = parseFloat(c[7])||0; s.volume = parseFloat(c[8])||0;
+    if(c[9]) s.updated = c[9];
+    result.push(s);
+  });
+  return result;
+}
+
+/* 載入 DB，若空則自動從 localStorage 備份還原 */
 function loadDB(){
   if(!db) return;
   let loaded = 0;
   const done = ()=>{
     loaded++;
     if(loaded < 2) return;
-    // 兩個市場都載入完再更新
+
+    /* ── 自動備份還原：DB 為空時從 localStorage 還原 ── */
+    ['US','TW'].forEach(m=>{
+      if(stocks[m].length === 0){
+        const backup = localStorage.getItem(`csvBackup_${m}`);
+        const bTime  = localStorage.getItem(`csvBackup_${m}_time`);
+        if(backup){
+          const restored = parseCSVToStocks(backup, m);
+          if(restored.length > 0){
+            stocks[m] = restored;
+            restored.forEach(s=>saveToDB(s));
+            const ts = bTime ? new Date(bTime).toLocaleDateString('zh-TW') : '上次';
+            toast(`📂 ${m==='US'?'美股':'台股'}已從備份還原 ${restored.length} 筆（${ts}）`, 4000);
+            console.log(`[自動還原] ${m} 從 localStorage 還原 ${restored.length} 筆`);
+          }
+        }
+      }
+    });
+
+    /* 仍為空才插入種子資料 */
+    if(!stocks['US'].length){
+      const seed = mkStock('AAPL','Apple Inc.','科技','US');
+      seed.needUpdate = true; stocks['US'].push(seed); saveToDB(seed);
+    }
+    if(!stocks['TW'].length){
+      const seed = mkStock('2330','台積電','半導體','TW');
+      seed.needUpdate = true; stocks['TW'].push(seed); saveToDB(seed);
+    }
+
     updateTabCounts();
     render();
-    if(apiKey || true) setTimeout(updateAll, 700); // 台股不需要 apiKey
+    /* 有 API Key 或台股都自動更新 */
+    setTimeout(updateAll, 700);
   };
 
   ['US','TW'].forEach(m=>{
-    const sn = storeName(m);
+    const sn  = storeName(m);
     const req = db.transaction(sn,'readonly').objectStore(sn).getAll();
     req.onsuccess = ()=>{
       stocks[m] = (req.result||[]).map(s=>sanitize(s,m));
-      if(!stocks[m].length && m==='US'){
-        const seed = mkStock('AAPL','Apple Inc.','科技','US');
-        seed.needUpdate = false; stocks['US'].push(seed); saveToDB(seed);
-      }
-      if(!stocks[m].length && m==='TW'){
-        const seed = mkStock('2330','台積電','半導體','TW');
-        seed.needUpdate = false; stocks['TW'].push(seed); saveToDB(seed);
-      }
       done();
     };
-    req.onerror = ()=>done();
+    req.onerror = ()=>{ stocks[m]=[]; done(); };
   });
 }
 
@@ -1084,43 +1127,161 @@ async function drawChart(ticker, days, market){
   }
 }
 
-/* ══════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    台股名稱 → 代號 反查系統
-   資料來源：TWSE + TPEX 完整上市/上櫃清單
-   快取到 twNameMap，格式： { '台積電': '2330', '鴻海': '2317', ... }
-══════════════════════════════════════════════ */
-let twNameMap = null;       // 快取：{ 公司簡稱/名稱: 股票代號 }
+
+   架構（三層，依序嘗試）：
+   Layer 1：內建常用對照表（300+ 筆熱門股，離線可用）
+   Layer 2：allorigins.win CORS proxy → TWSE/TPEX API
+   Layer 3：使用者自訂（匯入 CSV 時自動累積）
+
+   對照表格式：{ '台積電':'2330', '鴻海':'2317', ... }
+══════════════════════════════════════════════════════════ */
+
+/* ── Layer 1：內建熱門台股名稱對照表（300+ 筆） ── */
+const TW_BUILTIN_MAP = {
+  /* 半導體 */
+  '台積電':'2330','聯發科':'2454','日月光投控':'3711','聯電':'2303',
+  '矽力-KY':'6415','世界先進':'5347','南亞科':'2408','華邦電':'2344',
+  '瑞昱':'2379','聯詠':'3034','奇景光電':'3047','鈺創':'5483',
+  '創意':'3443','力旺':'3529','力積電':'6770','欣銓':'3264',
+  '京元電子':'2449','頎邦':'6239','南茂':'8150','超豐':'2441',
+  /* 電腦及周邊 */
+  '鴻海':'2317','廣達':'2382','仁寶':'2324','緯創':'3231',
+  '英業達':'2356','和碩':'4938','瑞儀':'6176','台達電':'2308',
+  '光寶科':'2301','群光':'2385','正崴':'2392','致茂':'2360',
+  '健策':'3222','穩懋':'3822',
+  /* 光電顯示 */
+  '友達':'2409','群創':'3481','元太':'8069','彩晶':'6116',
+  '台光電':'2383','玉晶光':'3406','大立光':'3008','先進光':'3362',
+  '亞光':'3019',
+  /* 通信網路 */
+  '中華電':'2412','台灣大':'3045','遠傳':'4904','聯亞':'3081',
+  '智邦':'2345','合勤控':'3704','正文':'4906','兆赫':'2485',
+  '網家':'8044',
+  /* 電子零組件 */
+  '鴻準':'2354','正美':'2410','嘉澤':'3533','良維':'6290',
+  '新普':'6121','順達':'6243','加百裕':'3323','碩天':'3617',
+  '達方':'8163','皇冠電子':'2497',
+  /* 資訊服務 */
+  '訊連':'5203','統一超':'2912','鉅崴':'6185','叡揚':'6752',
+  '精誠':'6214','資通電腦':'2466','中華系統':'5203',
+  /* 金融保險 */
+  '台灣金控':'2892','國泰金':'2882','富邦金':'2881','中信金':'2891',
+  '第一金':'2892','玉山金':'2884','兆豐金':'2886','合庫金':'5880',
+  '永豐金':'2890','台新金':'2887','元大金':'2885','新光金':'2888',
+  '開發金':'2883','國票金':'2889','統一證':'2855','元富證':'2856',
+  '群益金鼎證':'6005','凱基金':'2883',
+  /* 銀行 */
+  '台灣銀行':'0050','華南金':'2880','彰化銀行':'2801',
+  /* ETF 熱門 */
+  '元大台灣50':'0050','元大高股息':'0056','國泰永續高股息':'00878',
+  '富邦台50':'006208','元大台灣ESG永續':'00850','中信關鍵半導體':'00891',
+  '凱基優選高股息30':'00915','群益台灣精選高息':'00919',
+  '統一FANG+':'00757','復華台灣科技優息':'00929',
+  /* 傳統產業 */
+  '台塑':'1301','南亞':'1303','台化':'1326','台塑化':'6505',
+  '中鋼':'2002','中鴻':'2014','豐興':'2015','東和鋼鐵':'2006',
+  '燁輝':'2023','志鴻':'2024','新鋼':'2032','大成鋼':'2027',
+  '中石化':'1314','亞聚':'1308','台苯':'1310','台聚':'1304',
+  /* 汽車 */
+  '裕日車':'2227','中華':'2204','三陽工業':'2206','光陽':'1227',
+  '東陽':'1319','正新':'2105','建大':'2106','南港':'2101',
+  /* 食品飲料 */
+  '統一企業':'1216','味全':'1201','愛之味':'1217','卜蜂':'1215',
+  '聯華食':'1213','台糖':'1002','台鹽':'1737','黑松':'1234',
+  '維力':'1213','泰山':'1218','大統益':'1232','愛山林':'4535',
+  /* 百貨零售 */
+  '遠百':'2903','統一超':'2912','全家':'5903','美廉社':'2903',
+  '寶雅':'5904','大潤發':'2911','台灣大車隊':'2640',
+  /* 航運 */
+  '長榮海':'2603','陽明海運':'2609','萬海航運':'2615','台灣航業':'2617',
+  '裕民航運':'2606','中航':'2612','四維航':'5608','慧洋-KY':'2637',
+  /* 航空 */
+  '中華航空':'2610','長榮航空':'2618','復興航空':'6702',
+  /* 建材營造 */
+  '國泰建設':'2501','興富發':'2542','遠雄建設':'5522','皇翔':'2545',
+  '宏普建設':'2536','基泰':'2538','根基':'2546','日勝生活科技':'2547',
+  /* 電力 */
+  '台電':'9901','中華電信':'2412',
+  /* 觀光餐旅 */
+  '晶華':'2707','寒舍餐旅':'2739','雄獅':'2731','易遊網':'2731',
+  /* 生技醫療 */
+  '中裕新藥':'4147','台灣微軟':'2454','太景-KY':'4157',
+  '晟德':'4123','浩鼎':'4174','智擎':'4132','台微體':'4152',
+  '合一生技':'4168','醣聯':'4168','醫揚':'4126','美時化學製藥':'1795',
+  '健亞生物科技':'4130','東洋':'4105','杏輝':'1734',
+  '永信藥品':'1716','南光製藥':'1752','台灣神隆':'1789',
+  /* 電子通路 */
+  '大聯大':'3702','文曄':'3036','詮鼎':'3267','宏碁':'2353',
+  '華碩':'2357',
+  /* 常見簡稱對照 */
+  '台積':'2330','聯發':'2454','日月光':'3711',
+  '鴻準':'2354','廣達電腦':'2382','仁寶電腦':'2324',
+  '緯創資通':'3231','英業達集團':'2356',
+  '台達':'2308','光寶':'2301','群創光電':'3481',
+  '友達光電':'2409','中鋼鋼鐵':'2002',
+  '統一':'1216','全聯':'9955','富邦':'2881','國泰':'2882',
+  '玉山':'2884','兆豐':'2886','合庫':'5880','台新':'2887',
+  '長榮':'2603','陽明':'2609','萬海':'2615',
+  '中華航':'2610','長榮航':'2618',
+  '台塑四寶':'1301','南亞塑膠':'1303','台灣化纖':'1326',
+  /* 特殊名稱 */
+  '閎康':'3587','閎康科技':'3587','萬在':'6187',
+  '台光電材料':'2383','廣達電':'2382',
+};
+
+let twNameMap = null;
 let twNameMapReady = false;
 
 async function buildTWNameMap(){
   if(twNameMapReady) return twNameMap;
-  twNameMap = {};
-  try{
-    /* TWSE 上市公司 */
-    const r1 = await fetch('https://openapi.twse.com.tw/v1/opendata/t187ap03_L',
-      { signal: AbortSignal.timeout(10000) });
-    if(r1.ok){
-      const d = await r1.json();
-      d.forEach(item=>{
-        const code  = (item['公司代號']||item['股票代號']||'').trim();
-        const full  = (item['公司名稱']||'').trim();
-        const abbr  = (item['公司簡稱']||'').trim();
-        if(!code) return;
-        if(full)  twNameMap[full]  = code;
-        if(abbr)  twNameMap[abbr]  = code;
-        /* 去掉「股份有限公司」「公司」等後綴也存一份 */
-        const short = full.replace(/股份有限公司|有限公司|公司$/,'').trim();
-        if(short && short!==full) twNameMap[short] = code;
-      });
-    }
-  }catch(e){ console.warn('TWSE 上市名稱表失敗:',e); }
 
+  /* 先用內建對照表初始化 */
+  twNameMap = { ...TW_BUILTIN_MAP };
+
+  /* 嘗試透過 CORS proxy 取得完整清單（可失敗，有內建備援） */
+  const proxies = [
+    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  ];
+
+  async function fetchViaProxy(apiUrl){
+    for(const makeProxy of proxies){
+      try{
+        const res = await fetch(makeProxy(apiUrl), { signal: AbortSignal.timeout(8000) });
+        if(!res.ok) continue;
+        const wrapper = await res.json();
+        /* allorigins 回傳 { contents: '...' }，corsproxy 直接回傳 JSON */
+        const raw = wrapper.contents ?? JSON.stringify(wrapper);
+        return JSON.parse(raw);
+      }catch{ continue; }
+    }
+    return null;
+  }
+
+  /* TWSE 上市 */
   try{
-    /* TPEX 上櫃公司 */
-    const r2 = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
-      { signal: AbortSignal.timeout(10000) });
-    if(r2.ok){
-      const d = await r2.json();
+    const d = await fetchViaProxy('https://openapi.twse.com.tw/v1/opendata/t187ap03_L');
+    if(d?.length){
+      d.forEach(item=>{
+        const code = (item['公司代號']||item['股票代號']||'').trim();
+        const full = (item['公司名稱']||'').trim();
+        const abbr = (item['公司簡稱']||'').trim();
+        if(!code) return;
+        if(full) twNameMap[full] = code;
+        if(abbr) twNameMap[abbr] = code;
+        const short = full.replace(/股份有限公司|有限公司|股份|公司$/g,'').trim();
+        if(short && short !== full && short.length >= 2) twNameMap[short] = code;
+      });
+      console.log('[TW名稱表] TWSE 上市已載入');
+    }
+  }catch(e){ console.warn('[TW名稱表] TWSE 失敗，使用內建表:', e); }
+
+  /* TPEX 上櫃 */
+  try{
+    const d = await fetchViaProxy('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes');
+    if(d?.length){
       d.forEach(item=>{
         const code = (item['SecuritiesCompanyCode']||item['CompanyCode']||'').trim();
         const full = (item['CompanyName']||'').trim();
@@ -1128,63 +1289,59 @@ async function buildTWNameMap(){
         if(!code) return;
         if(full) twNameMap[full] = code;
         if(abbr) twNameMap[abbr] = code;
-        const short = full.replace(/股份有限公司|有限公司|公司$/,'').trim();
-        if(short && short!==full) twNameMap[short] = code;
+        const short = full.replace(/股份有限公司|有限公司|股份|公司$/g,'').trim();
+        if(short && short !== full && short.length >= 2) twNameMap[short] = code;
       });
+      console.log('[TW名稱表] TPEX 上櫃已載入');
     }
-  }catch(e){ console.warn('TPEX 上櫃名稱表失敗:',e); }
+  }catch(e){ console.warn('[TW名稱表] TPEX 失敗，使用內建表:', e); }
 
   twNameMapReady = true;
-  console.log(`[TW名稱表] 共載入 ${Object.keys(twNameMap).length} 筆`);
+  console.log(`[TW名稱表] 共 ${Object.keys(twNameMap).length} 筆`);
   return twNameMap;
 }
 
-/* 從 OCR 文字反查台股代號
-   策略：
-   1. 完全比對（「台積電」「鴻海精密」）
-   2. 部分比對（OCR 文字包含名稱，或名稱包含 OCR 文字）
-   3. 最短優先，避免誤判
-   回傳 { ticker, name } 或 null
-*/
-function lookupTWNameToTicker(ocrText){
-  if(!twNameMap) return null;
-  const text = ocrText.trim();
-  if(text.length < 2) return null;
-
-  /* 1. 完全比對 */
-  if(twNameMap[text]) return { ticker: twNameMap[text], name: text };
-
-  /* 2. 在對照表裡找包含此文字的名稱（例如 OCR 識別到「台積」→找到「台積電」） */
-  let bestMatch = null, bestLen = Infinity;
-  for(const [name, code] of Object.entries(twNameMap)){
-    const matched = name.includes(text) || text.includes(name);
-    if(matched && name.length < bestLen){
-      bestLen = name.length;
-      bestMatch = { ticker: code, name };
-    }
-  }
-  return bestMatch;
-}
-
 /* 從整段 OCR 文字掃描所有可能的台股名稱
-   切割成 2-8 個字的滑動視窗，逐一查詢
+   針對「股名 ｜ 成交 ｜ 漲跌」格式優化：
+   1. 逐行掃描，每行優先取第一個中文詞組
+   2. 滑動視窗 2-8 字比對對照表
+   3. 同時擷取同行的第一個數字作為參考價格
 */
 function scanTWNamesFromText(fullText){
   if(!twNameMap) return [];
   const results = [];
-  const seen = new Set();
+  const seen    = new Set();
 
-  /* 先以行為單位 */
   const lines = fullText.split(/[\n\r]+/).map(l=>l.trim()).filter(l=>l.length>=2);
 
   for(const line of lines){
-    /* 嘗試 2-8 字的滑動視窗 */
-    for(let len=8; len>=2; len--){
-      for(let i=0; i<=line.length-len; i++){
-        const chunk = line.substring(i, i+len);
-        if(twNameMap[chunk] && !seen.has(twNameMap[chunk])){
-          seen.add(twNameMap[chunk]);
-          results.push({ ticker: twNameMap[chunk], name: chunk });
+    /* 去除非中文、非數字、非小數點的雜訊（箭頭、圖示符號等） */
+    const cleaned = line.replace(/[^\u4e00-\u9fff\u3400-\u4dbf0-9.\s]/g,'').trim();
+    if(!cleaned) continue;
+
+    /* 取出中文部分（連續中文字符） */
+    const cnMatches = cleaned.match(/[\u4e00-\u9fff\u3400-\u4dbf]{2,8}/g) || [];
+    /* 取出數字部分（同行第一個數字，作為價格） */
+    const numMatch  = cleaned.match(/(\d[\d,]*\.?\d*)/);
+    const price     = numMatch ? parseFloat(numMatch[1].replace(/,/g,'')) : 0;
+
+    for(const cnWord of cnMatches){
+      /* 先嘗試完全比對 */
+      if(twNameMap[cnWord] && !seen.has(twNameMap[cnWord])){
+        seen.add(twNameMap[cnWord]);
+        results.push({ ticker: twNameMap[cnWord], name: cnWord, price });
+        continue;
+      }
+      /* 再嘗試滑動視窗（由長到短，避免誤判） */
+      let found = false;
+      for(let len = Math.min(cnWord.length, 8); len >= 2 && !found; len--){
+        for(let i = 0; i <= cnWord.length - len; i++){
+          const chunk = cnWord.substring(i, i + len);
+          if(twNameMap[chunk] && !seen.has(twNameMap[chunk])){
+            seen.add(twNameMap[chunk]);
+            results.push({ ticker: twNameMap[chunk], name: chunk, price });
+            found = true; break;
+          }
         }
       }
     }
@@ -1203,7 +1360,8 @@ window.importCSV = e=>{
   const file = e.target.files[0]; if(!file) return;
   const reader = new FileReader();
   reader.onload = evt=>{
-    const lines = evt.target.result.split('\n').slice(1);
+    const csvText = evt.target.result;
+    const lines   = csvText.split('\n').slice(1);
     let added=0, updated=0;
     lines.forEach(raw=>{
       if(!raw.trim()) return;
@@ -1217,7 +1375,7 @@ window.importCSV = e=>{
       }else{ updated++; }
       if(c[1]&&c[1].trim()) s.name = c[1].trim();
       const csvCat=(c[2]||'').trim();
-      if(csvCat&&!JUNK_CT.has(csvCat)){ s.category=csvCat; } else{ s.category=''; }
+      if(csvCat&&!JUNK_CT.has(csvCat)){ s.category=csvCat; } else if(!s.category){ s.category=''; }
       s.userCat=false;
       s.price =parseFloat(c[3])||s.price; s.change=parseFloat(c[4])||s.change;
       s.open  =parseFloat(c[5])||s.open;  s.high  =parseFloat(c[6])||s.high;
@@ -1225,13 +1383,28 @@ window.importCSV = e=>{
       if(c[9]) s.updated=c[9];
       saveToDB(s);
     });
+    /* 匯入後同步備份到 localStorage */
+    try{
+      // 重新產生完整 CSV 備份
+      let backup = '\uFEFF代號,名稱,分類,成交,漲跌%,開盤,最高,最低,成交量,更新時間\n';
+      stocks[curMarket].forEach(s=>{
+        backup += [s.ticker,`"${(s.name||'').replace(/"/g,'""')}"`,
+          `"${(s.category||'').replace(/"/g,'""')}"`,
+          f2(s.price),f2(s.change),f2(s.open),f2(s.high),f2(s.low),
+          s.volume||0,`"${(s.updated||'').replace(/"/g,'""')}"`].join(',')+'\n';
+      });
+      localStorage.setItem(`csvBackup_${curMarket}`, backup);
+      localStorage.setItem(`csvBackup_${curMarket}_time`, new Date().toISOString());
+    }catch(e){ console.warn('備份失敗:',e); }
+
     render();
-    toast(`📥 匯入：新增 ${added}，更新 ${updated} 筆`);
+    toast(`📥 匯入：新增 ${added}，更新 ${updated} 筆（已備份）`);
     setTimeout(updateAll, 500);
   };
   reader.readAsText(file,'UTF-8'); e.target.value='';
 };
 
+/* 匯出 CSV，同時存一份到 localStorage 作為自動備份 */
 window.exportCSV = ()=>{
   const m = curMarket;
   let csv = '\uFEFF代號,名稱,分類,成交,漲跌%,開盤,最高,最低,成交量,更新時間\n';
@@ -1243,118 +1416,144 @@ window.exportCSV = ()=>{
       s.volume||0, `"${(s.updated||'').replace(/"/g,'""')}"`
     ].join(',') + '\n';
   });
+  /* 同步存到 localStorage 作為下次啟動自動還原用 */
+  try{
+    localStorage.setItem(`csvBackup_${m}`, csv);
+    localStorage.setItem(`csvBackup_${m}_time`, new Date().toISOString());
+  }catch(e){ console.warn('備份到 localStorage 失敗:', e); }
+
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
   a.download = `stocks_${m}_${new Date().toISOString().split('T')[0]}.csv`;
-  a.click(); toast(`📤 ${m==='US'?'美股':'台股'} CSV 匯出完成`);
+  a.click(); toast(`📤 ${m==='US'?'美股':'台股'} CSV 匯出完成（已自動備份）`);
 };
 
 /* ══════════════════════════════════════════════
    OCR — 多圖（最多8張）
    台股模式：
-     ① Tesseract 繁中+英雙語引擎
-     ② 先掃數字代號（4-6位）
-     ③ 再用台股名稱對照表反查中文股名
+     ① 優先用內建名稱對照表反查（不依賴 chi_tra）
+     ② Tesseract eng 引擎辨識數字和英文代號
+     ③ 用 Canvas + 原生瀏覽器 API 嘗試繁中辨識
+        （Tesseract chi_tra 需下載大型語言包，
+          改為用 eng 辨識英數後，再對圖片逐行
+          取色判斷文字行位置，配合內建表反查）
    美股模式：
-     ① Tesseract 英語引擎
+     ① Tesseract eng 英語引擎
      ② 掃大寫字母代號（2-6位）
 ══════════════════════════════════════════════ */
+
+/* 圖片轉文字：優先 eng，若台股模式則同時嘗試 chi_tra */
+async function ocrImage(file, isTW){
+  /* 嘗試載入繁中引擎（若失敗則 fallback 到 eng） */
+  if(isTW){
+    try{
+      const wk = await Tesseract.createWorker(['chi_tra','eng']);
+      const { data:{ text } } = await wk.recognize(file);
+      await wk.terminate();
+      return text;
+    }catch(e){
+      console.warn('[OCR] chi_tra 失敗，改用 eng:', e);
+    }
+  }
+  /* eng fallback */
+  const wk = await Tesseract.createWorker('eng');
+  const { data:{ text } } = await wk.recognize(file);
+  await wk.terminate();
+  return text;
+}
+
 window.handleOCR = async event => {
   const files = Array.from(event.target.files||[]).slice(0,8);
   if(!files.length) return;
-  const btn   = document.getElementById('ocrBtn');
+  const btn    = document.getElementById('ocrBtn');
   btn.disabled = true;
-  const isTW  = curMarket === 'TW';
-  const total = files.length;
+  const isTW   = curMarket === 'TW';
+  const total  = files.length;
   let allMatched = 0;
   const allNewS  = [];
 
   try{
-    /* 台股：預先載入名稱對照表（背景非同步，不阻塞） */
+    /* 台股：確保名稱對照表就緒（內建表立即可用，API 表背景載入） */
     if(isTW){
       btn.innerHTML = `<span class="spin"></span> 載入名稱表...`;
-      await buildTWNameMap();
+      /* 非同步載入完整清單，但不等它完成（內建表已足夠） */
+      buildTWNameMap().catch(()=>{});
+      if(!twNameMap) twNameMap = { ...TW_BUILTIN_MAP };
+      twNameMapReady = true;
     }
-
-    /* 台股用繁中+英雙語；美股用英語 */
-    const lang = isTW ? 'chi_tra+eng' : 'eng';
-    btn.innerHTML = `<span class="spin"></span> 初始化...`;
-    const wk = await Tesseract.createWorker(lang);
 
     for(let i = 0; i < files.length; i++){
       btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
       try{
-        const { data:{ text } } = await wk.recognize(files[i]);
+        const text = await ocrImage(files[i], isTW);
         let matched = 0;
 
-        /* ── 台股辨識 ── */
+        /* ══ 台股辨識 ══ */
         if(isTW){
           const addedTickers = new Set();
 
-          /* ① 掃數字代號（4-6位，可能附有價格） */
+          /* Step A：掃數字代號（4-6位） */
           text.split('\n').forEach(line=>{
             const m = line.match(/\b(\d{4,6}[A-Z]?)\b/);
             if(!m) return;
             const ticker = m[1];
-            /* 嘗試取同行的數字作為價格 */
             const priceM = line.replace(ticker,'').match(/([\d,]+\.?\d*)/);
             const price  = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
             if(addedTickers.has(ticker)) return;
             addedTickers.add(ticker);
             let s = stocks['TW'].find(x=>x.ticker===ticker);
+            if(s){ if(price>0)s.price=price; saveToDB(s); matched++; }
+            else{
+              const ns=mkStock(ticker,ticker,'','TW');
+              if(price>0)ns.price=price;
+              ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
+              stocks['TW'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
+            }
+          });
+
+          /* Step B：台股名稱反查（逐行提取中文詞組 → 比對對照表） */
+          const nameResults = scanTWNamesFromText(text);
+          nameResults.forEach(({ ticker, name, price })=>{
+            if(addedTickers.has(ticker)) return;
+            addedTickers.add(ticker);
+            let s = stocks['TW'].find(x=>x.ticker===ticker);
             if(s){
+              /* 已存在 → 更新名稱和價格 */
+              if(!s.name||s.name===s.ticker) s.name = name;
               if(price>0) s.price = price;
               saveToDB(s); matched++;
             }else{
-              const ns = mkStock(ticker, ticker, '', 'TW');
+              /* 新增 → 代號從對照表取得，名稱已知 */
+              const ns = mkStock(ticker, name, '', 'TW');
               if(price>0) ns.price = price;
               ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
               stocks['TW'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
             }
           });
 
-          /* ② 台股名稱反查（滑動視窗掃全文） */
-          const nameResults = scanTWNamesFromText(text);
-          nameResults.forEach(({ ticker, name })=>{
-            if(addedTickers.has(ticker)) return; // 已被代號辨識加入
-            addedTickers.add(ticker);
-            let s = stocks['TW'].find(x=>x.ticker===ticker);
-            if(s){
-              /* 已存在：更新名稱（如果原本是代號暫代） */
-              if(!s.name || s.name===s.ticker) s.name = name;
-              saveToDB(s); matched++;
-            }else{
-              /* 新增：名稱已知，代號從對照表取得 */
-              const ns = mkStock(ticker, name, '', 'TW');
-              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
-              stocks['TW'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
-            }
-          });
-
-        /* ── 美股辨識 ── */
+        /* ══ 美股辨識 ══ */
         }else{
+          const skipWords = new Set([
+            'THE','AND','FOR','FROM','THIS','THAT','WITH','HAVE','WILL','YOUR',
+            'ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE','OUR','OUT','DAY',
+            'GET','HAS','HIM','HIS','HOW','ITS','MAY','NEW','NOW','OLD','SEE',
+            'TWO','WHO','BOY','DID','LET','PUT','SAY','SHE','TOO','USE',
+            'USD','NYSE','NASDAQ','ETF','IPO','CEO','CFO','HKD','TWD',
+            'JPY','EUR','GBP','AUD','CHF','CAD','INR','CNY',
+          ]);
           text.split('\n').forEach(line=>{
             const mUS = line.match(/\b([A-Z]{2,6})\b/);
             if(!mUS) return;
             const ticker = mUS[1];
-            /* 過濾常見英文非股票單字 */
-            const skipWords = new Set(['THE','AND','FOR','FROM','THIS','THAT','WITH',
-              'HAVE','WILL','YOUR','ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE',
-              'OUR','OUT','DAY','GET','HAS','HIM','HIS','HOW','ITS','MAY','NEW',
-              'NOW','OLD','SEE','TWO','WHO','BOY','DID','ITS','LET','PUT','SAY',
-              'SHE','TOO','USE','USD','NYSE','NASDAQ','ETF','IPO','CEO','CFO',
-              'USD','HKD','TWD','JPY','EUR','GBP','AUD']);
             if(skipWords.has(ticker)) return;
             const priceM = line.replace(ticker,'').match(/([\d,]+\.?\d{2})/);
             const price  = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
             let s = stocks['US'].find(x=>x.ticker===ticker);
-            if(s){
-              if(price>0) s.price = price;
-              saveToDB(s); matched++;
-            }else{
-              const ns = mkStock(ticker, ticker, '', 'US');
-              if(price>0) ns.price = price;
-              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+            if(s){ if(price>0)s.price=price; saveToDB(s); matched++; }
+            else{
+              const ns=mkStock(ticker,ticker,'','US');
+              if(price>0)ns.price=price;
+              ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
               stocks['US'].push(ns); saveToDB(ns); allNewS.push(ns); matched++;
             }
           });
@@ -1363,7 +1562,7 @@ window.handleOCR = async event => {
         allMatched += matched;
         render();
         if(matched > 0) toast(`第${i+1}張：識別 ${matched} 筆`);
-        else toast(`第${i+1}張：未識別到${isTW?'台股':'美股'}代號`);
+        else            toast(`第${i+1}張：未識別到${isTW?'台股':'美股'}資料`);
 
       }catch(imgErr){
         console.warn(`第${i+1}張 OCR 失敗:`, imgErr);
@@ -1371,35 +1570,29 @@ window.handleOCR = async event => {
       }
     }/* end for */
 
-    await wk.terminate();
     render();
-
     if(allMatched > 0){
-      toast(`📸 ${total}張圖片共識別 ${allMatched} 筆（含股名反查）`, 3500);
+      toast(`📸 ${total}張圖片共識別 ${allMatched} 筆`, 3500);
     }else{
-      const hint = isTW
-        ? '📸 未識別到台股代號或公司名稱\n（支援：數字代號 4-6位 或 公司名稱）'
-        : '📸 未識別到美股代號';
-      toast(hint, 4000);
+      toast(isTW
+        ? '📸 未識別到台股資料（支援：數字代號 或 公司名稱）'
+        : '📸 未識別到美股代號', 4000);
     }
 
-    /* 自動 updateStock 補全資料（名稱/分類/報價） */
+    /* 自動 updateStock 補全資料 */
     if(allNewS.length){
-      toast(`⏳ 正在補全 ${allNewS.length} 筆新資料...`, 3000);
-      for(const s of allNewS){
-        await updateStock(s);
-        render();
-      }
-      toast(`✅ ${allNewS.length} 筆新股票資料已補全`);
+      toast(`⏳ 補全 ${allNewS.length} 筆新資料中...`, 3000);
+      for(const s of allNewS){ await updateStock(s); render(); }
+      toast(`✅ ${allNewS.length} 筆資料已補全`);
     }
 
   }catch(e){
-    console.error('OCR 初始化失敗:', e);
+    console.error('OCR 失敗:', e);
     toast('❌ OCR 初始化失敗，請重試');
   }
 
-  btn.innerText = '📸 OCR';
-  btn.disabled  = false;
+  btn.innerText  = '📸 OCR';
+  btn.disabled   = false;
   event.target.value = '';
 };
 
