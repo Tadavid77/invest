@@ -1464,36 +1464,62 @@ window.exportCSV = ()=>{
   a.click(); toast(`📤 ${m==='US'?'美股':'台股'} CSV 匯出完成（已自動備份）`);
 };
 
-/* ══════════════════════════════════════════════
-   OCR — 多圖（最多8張）
-   台股模式：
-     ① 優先用內建名稱對照表反查（不依賴 chi_tra）
-     ② Tesseract eng 引擎辨識數字和英文代號
-     ③ 用 Canvas + 原生瀏覽器 API 嘗試繁中辨識
-        （Tesseract chi_tra 需下載大型語言包，
-          改為用 eng 辨識英數後，再對圖片逐行
-          取色判斷文字行位置，配合內建表反查）
-   美股模式：
-     ① Tesseract eng 英語引擎
-     ② 掃大寫字母代號（2-6位）
-══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   OCR 核心
+   ─────────────────────────────────────────────────────
+   問題根本原因（已確認）：
+   - Tesseract eng 引擎無法辨識繁體中文
+   - 台積電→SWB、台光電→ate、廣達→ite（全部亂碼）
+   - scanTWNamesFromText 找不到中文字，永遠 0 筆
 
-/* ══════════════════════════════════════════════
-   OCR 圖片辨識
-   ─────────────────────────────────────────────
-   台股模式：使用 eng 引擎（數字/英文）
-             + 內建對照表反查中文股名
-             不使用 chi_tra（需下載50MB，容易失敗）
-   美股模式：使用 eng 引擎
-══════════════════════════════════════════════ */
-async function ocrImage(file){
-  const wk = await Tesseract.createWorker('eng');
+   正確解法：
+   ① 台股必須使用 chi_tra（繁體中文）引擎
+   ② chi_tra 語言包約 5-10MB，瀏覽器會自動快取
+   ③ 第一次下載後，之後每次使用都很快
+   ④ 美股繼續使用 eng 引擎
+══════════════════════════════════════════════════════ */
+
+/* Worker 快取（避免重複建立浪費時間） */
+let twOcrWorker  = null;
+let engOcrWorker = null;
+
+async function getTWOcrWorker(){
+  if(twOcrWorker) return twOcrWorker;
+  twOcrWorker = await Tesseract.createWorker('chi_tra');
+  return twOcrWorker;
+}
+async function getEngOcrWorker(){
+  if(engOcrWorker) return engOcrWorker;
+  engOcrWorker = await Tesseract.createWorker('eng');
+  return engOcrWorker;
+}
+
+/* 台股辨識：chi_tra 繁中引擎，失敗則每次新建 */
+async function ocrTW(file){
   try{
+    const wk = await getTWOcrWorker();
     const { data:{ text } } = await wk.recognize(file);
     return text;
-  }finally{
-    await wk.terminate();
+  }catch(e){
+    console.warn('[OCR] worker快取失敗，新建chi_tra:', e);
+    twOcrWorker = null;
   }
+  try{
+    const wk2 = await Tesseract.createWorker('chi_tra');
+    const { data:{ text } } = await wk2.recognize(file);
+    await wk2.terminate();
+    return text;
+  }catch(e2){
+    console.error('[OCR] chi_tra 完全失敗:', e2);
+    throw new Error('繁中引擎載入失敗，請確認網路連線後重試');
+  }
+}
+
+/* 美股辨識：eng 引擎 */
+async function ocrUS(file){
+  const wk = await getEngOcrWorker();
+  const { data:{ text } } = await wk.recognize(file);
+  return text;
 }
 
 window.handleOCR = async event => {
@@ -1507,32 +1533,23 @@ window.handleOCR = async event => {
   const allNewS  = [];
 
   try{
-    /* 台股：確保名稱對照表就緒（內建表立即可用，API 表背景載入） */
     if(isTW){
-      btn.innerHTML = `<span class="spin"></span> 載入名稱表...`;
-      /* 非同步載入完整清單，但不等它完成（內建表已足夠） */
+      if(!twNameMap){ twNameMap = { ...TW_BUILTIN_MAP }; twNameMapReady = true; }
       buildTWNameMap().catch(()=>{});
-      if(!twNameMap) twNameMap = { ...TW_BUILTIN_MAP };
-      twNameMapReady = true;
+      btn.innerHTML = `<span class="spin"></span> 載入繁中引擎...`;
+      /* 預建 worker，讓第一張不用等 */
+      getTWOcrWorker().catch(()=>{});
     }
 
     for(let i = 0; i < files.length; i++){
       btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
       try{
-        const text = await ocrImage(files[i]);
+        const text = isTW ? await ocrTW(files[i]) : await ocrUS(files[i]);
         let matched = 0;
 
-        /* ══ 台股辨識 ══
-           策略：純名稱對照表反查
-           ① 圖片格式是「股名｜成交｜漲跌｜漲幅」，沒有數字代號
-           ② 不掃數字（成交價 2250、4730 等會被誤判成代號）
-           ③ 只用內建對照表比對中文股名 → 反查代號
-           ④ 同行第一個數字作為參考成交價
-        ══ */
+        /* ══ 台股辨識：chi_tra 輸出繁中文字後，用對照表反查代號 ══ */
         if(isTW){
           const addedTickers = new Set();
-
-          /* 名稱對照表反查（精確比對） */
           const nameResults = scanTWNamesFromText(text);
           nameResults.forEach(({ ticker, name, price })=>{
             if(addedTickers.has(ticker)) return;
