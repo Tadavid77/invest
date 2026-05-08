@@ -183,13 +183,12 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.2</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.3</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
       <div id="stockCount">📊 追蹤 <span id="cntNum">0</span> 檔</div>
       <button onclick="updateAll()" style="background:#2563eb;color:white;">🔄 全部更新</button>
-      <button onclick="focusAdd()"  style="background:#4f46e5;color:white;">＋ 新增</button>
       <button onclick="exportCSV()" style="background:#27272a;color:#d4d4d8;border:1px solid #3f3f46;">📤 匯出</button>
       <button onclick="document.getElementById('csvInp').click()" style="background:#27272a;color:#d4d4d8;border:1px solid #3f3f46;">📥 匯入</button>
       <button id="ocrBtn" onclick="document.getElementById('imgInp').click()" style="background:#059669;color:black;">📸 OCR</button>
@@ -329,15 +328,13 @@
    全域狀態
 ══════════════════════ */
 let db = null;
-let stocks = { US:[], TW:[] };   // 雙市場完全隔離
-let curMarket = 'US';             // 目前顯示的市場
+let stocks = { US:[], TW:[] };
+let curMarket = 'US';
 let chartInst = null;
 let curTicker = null, curDays = 30;
-let apiKey = localStorage.getItem('FINNHUB_KEY') || '';
+let apiKey = '';           // 由 restoreApiKey() 在 DOM ready 後填入
 let deferPWA = null;
-const volCache = {};  // { 'US:AAPL': 12345, 'TW:2330': 67890 }
-
-if(apiKey) document.getElementById('apiKey').value = apiKey;
+const volCache = {};
 
 /* ══════════════════════
    工具函式
@@ -395,19 +392,34 @@ const chkOnline = ()=>{ document.getElementById('offBar').style.display = naviga
 window.addEventListener('online', chkOnline); window.addEventListener('offline', chkOnline); chkOnline();
 
 /* ══════════════════════
-   API Key UI
+   API Key UI — 啟動自動填入，防止 iOS 清空
 ══════════════════════ */
 function updateApiUI(){
   const el = document.getElementById('apiSt');
   if(apiKey){ el.style.color='#34d399'; el.innerText='🟢 Finnhub Key 已設定（美股）'; }
   else       { el.style.color='#9ca3af'; el.innerText='⚪ 未設定 Finnhub Key（台股可免費使用）'; }
 }
-updateApiUI();
+
+/* 啟動時填入已儲存的 Key（用 setTimeout 確保 DOM ready 後再填） */
+function restoreApiKey(){
+  const saved = localStorage.getItem('FINNHUB_KEY') || '';
+  if(saved){
+    apiKey = saved;
+    const inp = document.getElementById('apiKey');
+    if(inp) inp.value = saved;
+  }
+  updateApiUI();
+}
+/* 防止 iOS Safari 在頁面初始化時清空 password 欄位 */
+setTimeout(restoreApiKey, 100);
+
 window.saveKey = ()=>{
   const k = document.getElementById('apiKey').value.trim();
   if(!k){ toast('⚠️ API Key 不能為空'); return; }
-  apiKey = k; localStorage.setItem('FINNHUB_KEY', k);
-  updateApiUI(); toast('✅ Finnhub API Key 已儲存');
+  apiKey = k;
+  localStorage.setItem('FINNHUB_KEY', k);
+  updateApiUI();
+  toast('✅ Finnhub API Key 已儲存');
 };
 
 /* ══════════════════════
@@ -805,6 +817,8 @@ async function updateStock(s){
     if(q.prevClose>0) s.prevClose = q.prevClose;
     if(q.prevVol  >0) s.prevVol   = q.prevVol;
     s.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+    /* 若之前被標記為不存在，報價成功後清除標記 */
+    if(s.name==='此標的不存在！') s.name = s.ticker;
   }else{
     s.updated = '⚠️ 更新失敗';
   }
@@ -821,8 +835,19 @@ async function updateStock(s){
       s.userCat  = false;
     }
   }else{
-    if(!s.name||JUNK_NM.has(s.name)||s.name===s.ticker) s.name = s.ticker;
-    if(!s.category||JUNK_CT.has(s.category.trim())) s.category = '未分類';
+    /* ── 問題4 修復：美股代號不存在時的處理 ── */
+    if(!isTW){
+      /* 報價也失敗（price=0），且 profile 也取不到 → 很可能已下市或代號錯誤 */
+      if(!isGood(Number(s.price)) && s.updated.startsWith('⚠️')){
+        s.name     = '此標的不存在！';
+        s.category = '已下市或代號錯誤';
+        s.updated  = '⚠️ 查無此標的';
+      }
+      /* 只有 profile 取不到（但報價正常）→ 暫時保留原名稱 */
+    }else{
+      if(!s.name||JUNK_NM.has(s.name)||s.name===s.ticker) s.name = s.ticker;
+      if(!s.category||JUNK_CT.has(s.category.trim())) s.category = '未分類';
+    }
   }
 
   s.needUpdate = false;
@@ -1138,97 +1163,87 @@ async function drawChart(ticker, days, market){
    對照表格式：{ '台積電':'2330', '鴻海':'2317', ... }
 ══════════════════════════════════════════════════════════ */
 
-/* ── Layer 1：內建熱門台股名稱對照表（300+ 筆） ── */
+/* ── Layer 1：內建熱門台股名稱對照表（含圖片中所有股票） ── */
 const TW_BUILTIN_MAP = {
-  /* 半導體 */
-  '台積電':'2330','聯發科':'2454','日月光投控':'3711','聯電':'2303',
+  /* ── 圖片中出現的股票（完整比對用） ── */
+  '萬在':'6187','台積電':'2330','台達電':'2308','台光電':'2383',
+  '鴻海':'2317','廣達':'2382','京元電子':'2449','聯發科':'2454',
+  '閎康':'3587','緯創':'3231','長榮':'2603','大立光':'3008',
+  '技嘉':'2376','華通':'2313','欣興':'3037','元太':'8069',
+  '富邦金':'2881','國泰金':'2882','永豐金':'2890','兆豐金':'2886',
+  '玉山金':'2884','中信金':'2891','臺企銀':'2834','宏達電':'2498',
+  '萬海':'2615','陽明':'2609','長榮航':'2618','群創':'3481',
+  '中光電':'5371','雷虎':'8033','漢翔':'2634','光寶科':'2301',
+  '譜瑞':'6185','臻鼎':'4958','緯穎':'6669',
+  '金像電':'2368','亞光':'3019',
+  /* ── ETF 完整名稱 ── */
+  '元大台灣50':'0050','元大高股息':'0056',
+  '國泰永續高股息':'00878','國泰永高息':'00878',
+  '富邦台50':'006208','元大台灣ESG永續':'00850',
+  '中信關鍵半導體':'00891','凱基優選高股息30':'00915',
+  '群益台灣精選高息':'00919','統一FANG+':'00757',
+  '復華台灣科技優息':'00929','元大台灣50正2':'00631L',
+  '元大台灣50反1':'00632R','群益ESG投等債20+':'00937B',
+  '國泰投資級公司債':'00725B','野村臺灣新科技50':'00935',
+  '國泰永續高股息':'00878','國泰台灣領袖50':'00922',
+  '國泰台灣科技龍頭':'00905','統一FANG+':'00757',
+  '國泰費城半導體':'00830','國泰智能電動車':'00893',
+  '富邦恒生國企正2':'00839L','復華香港正2':'00650L',
+  '中信中國50':'00752','中信中國50正2':'00753L',
+  '永豐中國科技50大':'00878',
+  '元大滬深300正2':'00638L',
+  /* ── 半導體 ── */
+  '聯發科':'2454','日月光投控':'3711','聯電':'2303',
   '矽力-KY':'6415','世界先進':'5347','南亞科':'2408','華邦電':'2344',
   '瑞昱':'2379','聯詠':'3034','奇景光電':'3047','鈺創':'5483',
   '創意':'3443','力旺':'3529','力積電':'6770','欣銓':'3264',
-  '京元電子':'2449','頎邦':'6239','南茂':'8150','超豐':'2441',
-  /* 電腦及周邊 */
-  '鴻海':'2317','廣達':'2382','仁寶':'2324','緯創':'3231',
-  '英業達':'2356','和碩':'4938','瑞儀':'6176','台達電':'2308',
-  '光寶科':'2301','群光':'2385','正崴':'2392','致茂':'2360',
-  '健策':'3222','穩懋':'3822',
-  /* 光電顯示 */
-  '友達':'2409','群創':'3481','元太':'8069','彩晶':'6116',
-  '台光電':'2383','玉晶光':'3406','大立光':'3008','先進光':'3362',
-  '亞光':'3019',
-  /* 通信網路 */
+  '頎邦':'6239','南茂':'8150','超豐':'2441','穩懋':'3822',
+  /* ── 電腦周邊 ── */
+  '仁寶':'2324','英業達':'2356','和碩':'4938','瑞儀':'6176',
+  '群光':'2385','正崴':'2392','致茂':'2360','健策':'3222',
+  '鴻準':'2354',
+  /* ── 光電顯示 ── */
+  '友達':'2409','彩晶':'6116','玉晶光':'3406','先進光':'3362',
+  /* ── 通信網路 ── */
   '中華電':'2412','台灣大':'3045','遠傳':'4904','聯亞':'3081',
   '智邦':'2345','合勤控':'3704','正文':'4906','兆赫':'2485',
   '網家':'8044',
-  /* 電子零組件 */
-  '鴻準':'2354','正美':'2410','嘉澤':'3533','良維':'6290',
+  /* ── 電子零組件 ── */
+  '正美':'2410','嘉澤':'3533','良維':'6290',
   '新普':'6121','順達':'6243','加百裕':'3323','碩天':'3617',
-  '達方':'8163','皇冠電子':'2497',
-  /* 資訊服務 */
-  '訊連':'5203','統一超':'2912','鉅崴':'6185','叡揚':'6752',
-  '精誠':'6214','資通電腦':'2466','中華系統':'5203',
-  /* 金融保險 */
-  '台灣金控':'2892','國泰金':'2882','富邦金':'2881','中信金':'2891',
-  '第一金':'2892','玉山金':'2884','兆豐金':'2886','合庫金':'5880',
-  '永豐金':'2890','台新金':'2887','元大金':'2885','新光金':'2888',
+  '達方':'8163',
+  /* ── 金融 ── */
+  '台灣金控':'2892','第一金':'2892','合庫金':'5880',
+  '台新金':'2887','元大金':'2885','新光金':'2888',
   '開發金':'2883','國票金':'2889','統一證':'2855','元富證':'2856',
-  '群益金鼎證':'6005','凱基金':'2883',
-  /* 銀行 */
-  '台灣銀行':'0050','華南金':'2880','彰化銀行':'2801',
-  /* ETF 熱門 */
-  '元大台灣50':'0050','元大高股息':'0056','國泰永續高股息':'00878',
-  '富邦台50':'006208','元大台灣ESG永續':'00850','中信關鍵半導體':'00891',
-  '凱基優選高股息30':'00915','群益台灣精選高息':'00919',
-  '統一FANG+':'00757','復華台灣科技優息':'00929',
-  /* 傳統產業 */
+  '群益金鼎證':'6005','華南金':'2880','彰化銀行':'2801',
+  /* ── 傳統產業 ── */
   '台塑':'1301','南亞':'1303','台化':'1326','台塑化':'6505',
   '中鋼':'2002','中鴻':'2014','豐興':'2015','東和鋼鐵':'2006',
-  '燁輝':'2023','志鴻':'2024','新鋼':'2032','大成鋼':'2027',
   '中石化':'1314','亞聚':'1308','台苯':'1310','台聚':'1304',
-  /* 汽車 */
+  /* ── 汽車 ── */
   '裕日車':'2227','中華':'2204','三陽工業':'2206','光陽':'1227',
   '東陽':'1319','正新':'2105','建大':'2106','南港':'2101',
-  /* 食品飲料 */
+  /* ── 食品 ── */
   '統一企業':'1216','味全':'1201','愛之味':'1217','卜蜂':'1215',
-  '聯華食':'1213','台糖':'1002','台鹽':'1737','黑松':'1234',
-  '維力':'1213','泰山':'1218','大統益':'1232','愛山林':'4535',
-  /* 百貨零售 */
-  '遠百':'2903','統一超':'2912','全家':'5903','美廉社':'2903',
-  '寶雅':'5904','大潤發':'2911','台灣大車隊':'2640',
-  /* 航運 */
-  '長榮海':'2603','陽明海運':'2609','萬海航運':'2615','台灣航業':'2617',
-  '裕民航運':'2606','中航':'2612','四維航':'5608','慧洋-KY':'2637',
-  /* 航空 */
-  '中華航空':'2610','長榮航空':'2618','復興航空':'6702',
-  /* 建材營造 */
-  '國泰建設':'2501','興富發':'2542','遠雄建設':'5522','皇翔':'2545',
-  '宏普建設':'2536','基泰':'2538','根基':'2546','日勝生活科技':'2547',
-  /* 電力 */
-  '台電':'9901','中華電信':'2412',
-  /* 觀光餐旅 */
-  '晶華':'2707','寒舍餐旅':'2739','雄獅':'2731','易遊網':'2731',
-  /* 生技醫療 */
-  '中裕新藥':'4147','台灣微軟':'2454','太景-KY':'4157',
-  '晟德':'4123','浩鼎':'4174','智擎':'4132','台微體':'4152',
-  '合一生技':'4168','醣聯':'4168','醫揚':'4126','美時化學製藥':'1795',
-  '健亞生物科技':'4130','東洋':'4105','杏輝':'1734',
-  '永信藥品':'1716','南光製藥':'1752','台灣神隆':'1789',
-  /* 電子通路 */
-  '大聯大':'3702','文曄':'3036','詮鼎':'3267','宏碁':'2353',
-  '華碩':'2357',
-  /* 常見簡稱對照 */
-  '台積':'2330','聯發':'2454','日月光':'3711',
-  '鴻準':'2354','廣達電腦':'2382','仁寶電腦':'2324',
-  '緯創資通':'3231','英業達集團':'2356',
-  '台達':'2308','光寶':'2301','群創光電':'3481',
-  '友達光電':'2409','中鋼鋼鐵':'2002',
-  '統一':'1216','全聯':'9955','富邦':'2881','國泰':'2882',
-  '玉山':'2884','兆豐':'2886','合庫':'5880','台新':'2887',
-  '長榮':'2603','陽明':'2609','萬海':'2615',
-  '中華航':'2610','長榮航':'2618',
-  '台塑四寶':'1301','南亞塑膠':'1303','台灣化纖':'1326',
-  /* 特殊名稱 */
-  '閎康':'3587','閎康科技':'3587','萬在':'6187',
-  '台光電材料':'2383','廣達電':'2382',
+  '台糖':'1002','台鹽':'1737','黑松':'1234','泰山':'1218',
+  '大統益':'1232',
+  /* ── 百貨零售 ── */
+  '統一超':'2912','全家':'5903','寶雅':'5904','台灣大車隊':'2640',
+  /* ── 航運 ── */
+  '台灣航業':'2617','裕民':'2606','四維航':'5608','慧洋-KY':'2637',
+  /* ── 航空 ── */
+  '中華航空':'2610',
+  /* ── 建材 ── */
+  '國泰建設':'2501','興富發':'2542','遠雄建設':'5522',
+  /* ── 生技 ── */
+  '太景-KY':'4157','晟德':'4123','浩鼎':'4174','智擎':'4132',
+  '台微體':'4152','合一生技':'4168','東洋':'4105',
+  /* ── 電子通路 ── */
+  '大聯大':'3702','文曄':'3036','宏碁':'2353','華碩':'2357',
+  /* ── 常見簡稱 ── */
+  '台積':'2330','日月光':'3711','光寶':'2301','群創光電':'3481',
+  '友達光電':'2409','長榮航太':'2634',
 };
 
 let twNameMap = null;
@@ -1301,49 +1316,71 @@ async function buildTWNameMap(){
   return twNameMap;
 }
 
-/* 從整段 OCR 文字掃描所有可能的台股名稱
-   針對「股名 ｜ 成交 ｜ 漲跌」格式優化：
-   1. 逐行掃描，每行優先取第一個中文詞組
-   2. 滑動視窗 2-8 字比對對照表
-   3. 同時擷取同行的第一個數字作為參考價格
-*/
+/* ══════════════════════════════════════════════
+   台股名稱掃描（精確版）
+   ─────────────────────────────────────────────
+   設計原則：
+   ① 只做「完全比對」，不做滑動視窗部分比對
+      → 防止「元大台灣50反1」被拆成「元大」誤判
+   ② 每行提取中文詞組後，依照長度由長到短
+      嘗試完全比對（優先命中最完整的名稱）
+   ③ 禁止純數字、單字、常見雜訊詞進入比對
+   ④ 同行第一個合理數字作為參考價格
+══════════════════════════════════════════════ */
+
+/* 雜訊詞黑名單（不是股票名稱的中文詞組） */
+const TW_NOISE = new Set([
+  '股名','成交','漲跌','漲幅','自選','報價','下單','帳務','更多',
+  '行動','自選庫存','加權指數','加權','指數','庫存','行動自選',
+  '反','正','大','小','元大','富邦','國泰','永豐','兆豐',
+]);
+
 function scanTWNamesFromText(fullText){
   if(!twNameMap) return [];
   const results = [];
   const seen    = new Set();
 
-  const lines = fullText.split(/[\n\r]+/).map(l=>l.trim()).filter(l=>l.length>=2);
+  const lines = fullText.split(/[\n\r]+/)
+    .map(l => l.replace(/[^\u4e00-\u9fff\u3400-\u4dbf0-9.\-+%\s]/g,'').trim())
+    .filter(l => l.length >= 2);
 
   for(const line of lines){
-    /* 去除非中文、非數字、非小數點的雜訊（箭頭、圖示符號等） */
-    const cleaned = line.replace(/[^\u4e00-\u9fff\u3400-\u4dbf0-9.\s]/g,'').trim();
-    if(!cleaned) continue;
+    /* 取出所有連續中文詞組 */
+    const cnGroups = line.match(/[\u4e00-\u9fff\u3400-\u4dbf][\u4e00-\u9fff\u3400-\u4dbf\w\-]*/g) || [];
+    /* 取出同行第一個有意義的數字作為價格 */
+    const numM  = line.match(/(\d[\d,]*\.?\d*)/);
+    const price = numM ? parseFloat(numM[1].replace(/,/g,'')) : 0;
 
-    /* 取出中文部分（連續中文字符） */
-    const cnMatches = cleaned.match(/[\u4e00-\u9fff\u3400-\u4dbf]{2,8}/g) || [];
-    /* 取出數字部分（同行第一個數字，作為價格） */
-    const numMatch  = cleaned.match(/(\d[\d,]*\.?\d*)/);
-    const price     = numMatch ? parseFloat(numMatch[1].replace(/,/g,'')) : 0;
+    /* 對每個中文詞組，嘗試由長到短的完全比對 */
+    for(const cn of cnGroups){
+      /* 過濾黑名單和太短的詞 */
+      if(cn.length < 2 || TW_NOISE.has(cn)) continue;
+      /* 過濾純數字（Tesseract 誤讀為中文的情況） */
+      if(/^\d+$/.test(cn)) continue;
 
-    for(const cnWord of cnMatches){
-      /* 先嘗試完全比對 */
-      if(twNameMap[cnWord] && !seen.has(twNameMap[cnWord])){
-        seen.add(twNameMap[cnWord]);
-        results.push({ ticker: twNameMap[cnWord], name: cnWord, price });
-        continue;
-      }
-      /* 再嘗試滑動視窗（由長到短，避免誤判） */
-      let found = false;
-      for(let len = Math.min(cnWord.length, 8); len >= 2 && !found; len--){
-        for(let i = 0; i <= cnWord.length - len; i++){
-          const chunk = cnWord.substring(i, i + len);
+      let matched = false;
+      /* 由長到短嘗試子串完全比對（處理複合名稱如「元大台灣50正2」） */
+      for(let len = cn.length; len >= 2 && !matched; len--){
+        for(let i = 0; i <= cn.length - len; i++){
+          const chunk = cn.substring(i, i + len);
+          if(chunk.length < 2 || TW_NOISE.has(chunk)) continue;
           if(twNameMap[chunk] && !seen.has(twNameMap[chunk])){
+            /* 找到！驗證：名稱長度 >= 2 且不是單純雜訊 */
             seen.add(twNameMap[chunk]);
             results.push({ ticker: twNameMap[chunk], name: chunk, price });
-            found = true; break;
+            matched = true;
+            break;
           }
         }
       }
+    }
+
+    /* 額外處理跨行名稱（例如圖片中「元大台灣\n50正2」分兩行的情況） */
+    /* 把整行當作一個整體再查一次 */
+    const fullLine = cnGroups.join('');
+    if(fullLine.length >= 2 && twNameMap[fullLine] && !seen.has(twNameMap[fullLine])){
+      seen.add(twNameMap[fullLine]);
+      results.push({ ticker: twNameMap[fullLine], name: fullLine, price });
     }
   }
   return results;
@@ -1442,24 +1479,22 @@ window.exportCSV = ()=>{
      ② 掃大寫字母代號（2-6位）
 ══════════════════════════════════════════════ */
 
-/* 圖片轉文字：優先 eng，若台股模式則同時嘗試 chi_tra */
-async function ocrImage(file, isTW){
-  /* 嘗試載入繁中引擎（若失敗則 fallback 到 eng） */
-  if(isTW){
-    try{
-      const wk = await Tesseract.createWorker(['chi_tra','eng']);
-      const { data:{ text } } = await wk.recognize(file);
-      await wk.terminate();
-      return text;
-    }catch(e){
-      console.warn('[OCR] chi_tra 失敗，改用 eng:', e);
-    }
-  }
-  /* eng fallback */
+/* ══════════════════════════════════════════════
+   OCR 圖片辨識
+   ─────────────────────────────────────────────
+   台股模式：使用 eng 引擎（數字/英文）
+             + 內建對照表反查中文股名
+             不使用 chi_tra（需下載50MB，容易失敗）
+   美股模式：使用 eng 引擎
+══════════════════════════════════════════════ */
+async function ocrImage(file){
   const wk = await Tesseract.createWorker('eng');
-  const { data:{ text } } = await wk.recognize(file);
-  await wk.terminate();
-  return text;
+  try{
+    const { data:{ text } } = await wk.recognize(file);
+    return text;
+  }finally{
+    await wk.terminate();
+  }
 }
 
 window.handleOCR = async event => {
@@ -1485,7 +1520,7 @@ window.handleOCR = async event => {
     for(let i = 0; i < files.length; i++){
       btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
       try{
-        const text = await ocrImage(files[i], isTW);
+        const text = await ocrImage(files[i]);
         let matched = 0;
 
         /* ══ 台股辨識 ══ */
@@ -1511,19 +1546,17 @@ window.handleOCR = async event => {
             }
           });
 
-          /* Step B：台股名稱反查（逐行提取中文詞組 → 比對對照表） */
+          /* Step B：台股名稱反查（精確比對，不做部分滑動視窗） */
           const nameResults = scanTWNamesFromText(text);
           nameResults.forEach(({ ticker, name, price })=>{
             if(addedTickers.has(ticker)) return;
             addedTickers.add(ticker);
             let s = stocks['TW'].find(x=>x.ticker===ticker);
             if(s){
-              /* 已存在 → 更新名稱和價格 */
               if(!s.name||s.name===s.ticker) s.name = name;
               if(price>0) s.price = price;
               saveToDB(s); matched++;
             }else{
-              /* 新增 → 代號從對照表取得，名稱已知 */
               const ns = mkStock(ticker, name, '', 'TW');
               if(price>0) ns.price = price;
               ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
