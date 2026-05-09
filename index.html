@@ -1479,58 +1479,53 @@ window.exportCSV = ()=>{
    - 美股圖片繼續用 Tesseract eng（英文準確率高）
 ══════════════════════════════════════════════════════ */
 
-/* 用 Claude Vision API 辨識台股圖片 */
+/* 用 Claude Vision API 辨識台股圖片
+   在 claude.ai Artifact 環境：不需要 key，用 anthropic-dangerous-direct-browser-access
+   在 GitHub Pages：需要使用者提供 Anthropic API Key
+*/
 async function ocrWithClaude(file){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = async (e)=>{
       try{
-        const base64 = e.target.result.split(',')[1];
+        const base64   = e.target.result.split(',')[1];
         const mimeType = file.type || 'image/jpeg';
+
+        /* 嘗試取得 Anthropic API Key（從 localStorage，讓使用者自行設定） */
+        const anthropicKey = localStorage.getItem('ANTHROPIC_KEY') || '';
+
+        const headers = { 'Content-Type': 'application/json' };
+        /* claude.ai Artifact 環境不需要 key */
+        if(anthropicKey) headers['x-api-key'] = anthropicKey;
+        /* 允許瀏覽器直接呼叫（需要在 Anthropic Console 開啟此功能） */
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+        headers['anthropic-version'] = '2023-06-01';
 
         const res = await fetch('https://api.anthropic.com/v1/messages',{
           method:'POST',
-          headers:{'Content-Type':'application/json'},
+          headers,
           body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
             max_tokens: 1000,
             messages:[{
               role: 'user',
               content:[
-                {
-                  type:'image',
-                  source:{ type:'base64', media_type: mimeType, data: base64 }
-                },
-                {
-                  type:'text',
-                  text:`這是一張台股自選清單的截圖。
-請找出圖片中所有的股票名稱和對應的成交價格。
-只回傳 JSON 陣列，格式如下，不要有任何其他文字：
-[{"name":"台積電","price":568.00},{"name":"鴻海","price":239.50}]
-注意：
-- 只提取股票名稱（中文）和成交價（數字）
-- 忽略「加權指數」等指數
-- 忽略漲跌、漲幅欄位的數字
-- 若某行沒有成交價（顯示-），price 填 0
-- 只回傳 JSON，不要說明文字`
-                }
+                { type:'image', source:{ type:'base64', media_type:mimeType, data:base64 } },
+                { type:'text', text:'這是一張台股自選清單的截圖。請找出圖片中所有的股票名稱和對應的成交價格。只回傳 JSON 陣列，格式：[{"name":"台積電","price":568.00}]。注意：只提取股票名稱（中文）和成交價（數字），忽略加權指數等指數，若無成交價則 price 填 0，只回傳 JSON 不要其他文字。' }
               ]
             }]
           })
         });
 
         if(!res.ok){
-          const err = await res.text();
-          throw new Error(`API ${res.status}: ${err.substring(0,100)}`);
+          const errText = await res.text();
+          throw new Error(`API ${res.status}: ${errText.substring(0,120)}`);
         }
 
-        const data = await res.json();
-        const text = data.content?.[0]?.text || '[]';
-
-        // 解析 JSON
+        const data    = await res.json();
+        const text    = data.content?.[0]?.text || '[]';
         const cleaned = text.replace(/```json|```/g,'').trim();
-        const items = JSON.parse(cleaned);
-        resolve(items);
+        resolve(JSON.parse(cleaned));
 
       }catch(e){ reject(e); }
     };
@@ -1629,8 +1624,7 @@ window.handleOCR = async event => {
             'JPY','EUR','GBP','AUD','CHF','CAD','INR','CNY',
           ]);
           let matched = 0;
-          text.split('
-').forEach(line=>{
+          text.split('\n').forEach(line=>{
             const mUS = line.match(/([A-Z]{2,6})/);
             if(!mUS) return;
             const ticker = mUS[1];
