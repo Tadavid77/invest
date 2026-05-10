@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.4</title>
+  <title>投資大師 Pro MAX v13.5</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.4</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.5</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -294,7 +294,7 @@
 <div id="toast"></div>
 
 <!-- ══════════════════════════════════════════════════════════
-     投資大師 Pro MAX  v13.4
+     投資大師 Pro MAX  v13.5
      架構重大升級：美股（US）＋台股（TW）雙市場頁籤
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      資料架構：
@@ -1604,20 +1604,33 @@ window.handleOCR = async event => {
     let chiWk = null;
     btn.innerHTML = `<span class="spin"></span> 載入語言包...`;
     try{
-      /* 先試本地語言包（與 index.html 同目錄）*/
+      /* 先試本地語言包（與 index.html 同目錄，速度快）*/
       const localOk = await fetch('./chi_tra.traineddata',
-        { method:'HEAD', signal: AbortSignal.timeout(2000) })
+        { method:'HEAD', signal: AbortSignal.timeout(3000) })
         .then(r=>r.ok).catch(()=>false);
 
       if(localOk){
+        /* 本地語言包存在：直接用，速度快 */
         chiWk = await Tesseract.createWorker('chi_tra', 1, { langPath:'./' });
-        console.log('[OCR] chi_tra 本地語言包載入成功');
+        console.log('[OCR] ✅ chi_tra 本地語言包載入成功');
       }else{
-        chiWk = await Tesseract.createWorker('chi_tra');
-        console.log('[OCR] chi_tra CDN 語言包載入成功');
+        /* 本地不存在，嘗試 CDN，但只等 15 秒
+           若 15 秒內下載不完就放棄，不讓使用者等太久 */
+        console.log('[OCR] 本地語言包不存在，嘗試 CDN（最多等 15 秒）...');
+        const cdnTimeout = new Promise((_, reject)=>
+          setTimeout(()=>reject(new Error('CDN 下載逾時（15秒）')), 15000)
+        );
+        const createWorkerPromise = Tesseract.createWorker('chi_tra');
+        chiWk = await Promise.race([createWorkerPromise, cdnTimeout])
+          .catch(e=>{
+            console.warn('[OCR] CDN 下載失敗或逾時:', e.message);
+            return null;
+          });
+        if(chiWk) console.log('[OCR] ✅ chi_tra CDN 載入成功');
       }
     }catch(e){
-      console.warn('[OCR] chi_tra 無法載入（台股名稱辨識受限）:', e.message);
+      console.warn('[OCR] chi_tra 無法載入:', e.message);
+      chiWk = null;
     }
 
     const canReadChinese = !!chiWk;
@@ -1746,7 +1759,7 @@ window.handleOCR = async event => {
       if(allUS > 0) parts.push(`美股 ${allUS} 筆`);
       toast(`📸 共辨識：${parts.join('、')}`, 4000);
     }else if(!canReadChinese){
-      toast('📸 台股辨識：請將 chi_tra.traineddata 與 index.html 放在同一目錄後重試', 7000);
+      toast('📸 台股 OCR 需要語言包\n請將 chi_tra.traineddata 上傳到 GitHub repo 與 index.html 同一目錄', 8000);
     }else{
       toast('📸 未辨識到任何投資標的', 3000);
     }
