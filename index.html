@@ -1502,11 +1502,11 @@ window.exportCSV = ()=>{
       → CORS 封鎖，API 401/CORS Error
 
    正確解法：
-   把 chi_tra.traineddata 放在自己的 GitHub repo，
+   把 chi_tra.traineddata 與 index.html 放在同一目錄，
    Tesseract 指定 langPath 從同網域載入，無 CORS 問題。
 
    使用者需要做一次性操作（見說明）：
-   下載 chi_tra.traineddata → 放進 GitHub repo tessdata/ 目錄
+   下載 chi_tra.traineddata → 與 index.html 放在同一目錄
 
    備用方案（若語言包未就位）：
    啟用 Anthropic API（需 ANTHROPIC_KEY）
@@ -1517,19 +1517,19 @@ let twOcrWorker  = null;
 
 /* 建立台股 OCR Worker
    優先順序：
-   1. 本地語言包（./tessdata/chi_tra.traineddata）
+   1. 本地語言包（./chi_tra.traineddata，與 index.html 同目錄）
    2. 外部 CDN（tessdata.projectnaptha.com）
    3. Anthropic API（需 ANTHROPIC_KEY）
 */
 async function createTWWorker(){
   // 方案1：本地語言包（需使用者在 GitHub repo 放置語言包）
   try{
-    const testUrl = './tessdata/chi_tra.traineddata';
+    const testUrl = './chi_tra.traineddata';
     const testRes = await fetch(testUrl, {method:'HEAD', signal:AbortSignal.timeout(3000)});
     if(testRes.ok){
       // 語言包存在，使用本地路徑
       const wk = await Tesseract.createWorker('chi_tra', 1, {
-        langPath: './tessdata/',
+        langPath: './',
         logger: m => { if(m.status==='recognizing text') console.log(`[OCR] ${Math.round(m.progress*100)}%`); }
       });
       console.log('[OCR] 使用本地語言包');
@@ -1604,13 +1604,13 @@ window.handleOCR = async event => {
     let chiWk = null;
     btn.innerHTML = `<span class="spin"></span> 載入語言包...`;
     try{
-      /* 先試本地語言包（GitHub repo 的 tessdata/）*/
-      const localOk = await fetch('./tessdata/chi_tra.traineddata',
+      /* 先試本地語言包（與 index.html 同目錄）*/
+      const localOk = await fetch('./chi_tra.traineddata',
         { method:'HEAD', signal: AbortSignal.timeout(2000) })
         .then(r=>r.ok).catch(()=>false);
 
       if(localOk){
-        chiWk = await Tesseract.createWorker('chi_tra', 1, { langPath:'./tessdata/' });
+        chiWk = await Tesseract.createWorker('chi_tra', 1, { langPath:'./' });
         console.log('[OCR] chi_tra 本地語言包載入成功');
       }else{
         chiWk = await Tesseract.createWorker('chi_tra');
@@ -1746,7 +1746,7 @@ window.handleOCR = async event => {
       if(allUS > 0) parts.push(`美股 ${allUS} 筆`);
       toast(`📸 共辨識：${parts.join('、')}`, 4000);
     }else if(!canReadChinese){
-      toast('📸 台股辨識：請將 chi_tra.traineddata 放入 GitHub repo 的 tessdata/ 目錄後重試', 7000);
+      toast('📸 台股辨識：請將 chi_tra.traineddata 與 index.html 放在同一目錄後重試', 7000);
     }else{
       toast('📸 未辨識到任何投資標的', 3000);
     }
