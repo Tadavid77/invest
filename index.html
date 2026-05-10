@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.3</title>
+  <title>投資大師 Pro MAX v13.4</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.3</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.4</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -294,7 +294,7 @@
 <div id="toast"></div>
 
 <!-- ══════════════════════════════════════════════════════════
-     投資大師 Pro MAX  v13.3
+     投資大師 Pro MAX  v13.4
      架構重大升級：美股（US）＋台股（TW）雙市場頁籤
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      資料架構：
@@ -1634,15 +1634,9 @@ window.handleOCR = async event => {
           try{ chiText = (await chiWk.recognize(files[i])).data.text; }catch{}
         }
 
-        /* ── 判斷圖片是台股還是美股 ──
-           判斷規則：
-           1. chi_tra 辨識到中文股名 → 台股
-           2. eng 辨識到大寫股票代號（2-6字母）→ 美股
-           3. 兩者都有 → 兩邊都加
-        */
         let matchedTW = 0, matchedUS = 0;
 
-        /* 台股：用 chi_tra 文字 + 對照表 */
+        /* ── 台股：用 chi_tra 文字 + 對照表 ── */
         if(canReadChinese && chiText.trim()){
           const twResults = scanTWNamesFromText(chiText);
           const added = new Set();
@@ -1663,8 +1657,15 @@ window.handleOCR = async event => {
           });
         }
 
-        /* 美股：用 eng 文字 + 大寫代號過濾 */
-        if(engText.trim()){
+        /* ── 美股：用 eng 文字 + 嚴格過濾 ──
+           關鍵修復：若 chi_tra 已辨識到台股，
+           代表此圖片是台股截圖，eng 的亂碼不能加入美股
+           只有 chi_tra 完全沒辨識到任何台股，才考慮是美股圖片
+        ── */
+        const isTWImage = matchedTW > 0;  // 已判斷為台股圖片
+
+        if(!isTWImage && engText.trim()){
+          /* 確認圖片確實是美股（有合理的美股代號格式）*/
           const skipWords = new Set([
             'THE','AND','FOR','FROM','THIS','THAT','WITH','HAVE','WILL','YOUR',
             'ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE','OUR','OUT','DAY',
@@ -1673,19 +1674,30 @@ window.handleOCR = async event => {
             'USD','NYSE','NASDAQ','ETF','IPO','CEO','CFO','HKD','TWD',
             'JPY','EUR','GBP','AUD','CHF','CAD','INR','CNY','OPEN','HIGH',
             'LOW','CLOSE','LAST','PREV','CHANGE','VOLUME','NAME','PRICE',
+            /* 台股圖片中常見的 eng 亂碼字 */
+            'ANG','BER','BES','BRE','EEL','EELS','ERE','ETE','ING',
+            'ONG','UNG','SWB','ATE','ITE','ALE','ANG','BNG','CNG',
           ]);
+
+          /* 額外過濾：代號必須能在 eng 辨識行的合理位置出現
+             美股截圖中，代號通常在行首且後面跟著數字（股價）
+             若一行找到很多「代號」且沒有股價，可能是亂碼 */
           const usAdded = new Set();
+          let validUSCount = 0;
           engText.split('\n').forEach(line=>{
-            /* 找 2-6 位大寫字母開頭的代號 */
             const matches = [...line.matchAll(/\b([A-Z]{2,6})\b/g)];
             matches.forEach(m=>{
               const ticker = m[1];
               if(skipWords.has(ticker)) return;
               if(usAdded.has(ticker)) return;
-              /* 同行取最近的數字作為價格 */
-              const priceM = line.slice(m.index+ticker.length).match(/([\d,]+\.?\d{2})/);
-              const price = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
+              /* 美股代號後面必須有合理的股價（數字），否則跳過 */
+              const rest = line.slice(m.index + ticker.length);
+              const priceM = rest.match(/([\d,]+\.?\d{2})/);
+              if(!priceM) return;  // 沒有股價 → 很可能是亂碼，跳過
+              const price = parseFloat(priceM[1].replace(/,/g,''));
+              if(price <= 0 || price > 1000000) return;  // 不合理的價格，跳過
               usAdded.add(ticker);
+              validUSCount++;
               let s = stocks['US'].find(x=>x.ticker===ticker);
               if(s){ if(price>0)s.price=price; saveToDB(s); matchedUS++; }
               else{
