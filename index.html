@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.5</title>
+  <title>投資大師 Pro MAX v13.6</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.5</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.6</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -192,6 +192,7 @@
       <button onclick="exportCSV()" style="background:#27272a;color:#d4d4d8;border:1px solid #3f3f46;">📤 匯出</button>
       <button onclick="document.getElementById('csvInp').click()" style="background:#27272a;color:#d4d4d8;border:1px solid #3f3f46;">📥 匯入</button>
       <button id="ocrBtn" onclick="document.getElementById('imgInp').click()" style="background:#059669;color:black;">📸 OCR</button>
+      <button onclick="showTWTextInput()" style="background:#7c3aed;color:white;font-size:11px;padding:5px 10px;border-radius:6px;font-weight:600;">📝 台股文字</button>
     </div>
   </div>
 
@@ -271,6 +272,36 @@
   </div>
 </div>
 
+<!-- ════ Modal：台股文字批次輸入 ════ -->
+
+<div id="twTextModal" class="modal" onclick="closeModal('twTextModal')">
+  <div class="mbox" onclick="event.stopPropagation()" style="max-width:500px;">
+    <div style="margin-bottom:12px;">
+      <h3 style="font-size:15px;font-weight:700;color:#a78bfa;margin:0 0 6px;">📝 台股文字輸入</h3>
+      <p style="font-size:12px;color:#9ca3af;margin:0;">
+        從股票 App 複製股名後貼入（一行一個），程式自動查詢代號並新增到台股清單。<br>
+        支援格式：股名、股名+價格（如「台積電 568」）
+      </p>
+    </div>
+    <textarea id="twTextArea"
+      placeholder="貼上股票名稱，例如：&#10;台積電&#10;鴻海&#10;聯發科&#10;廣達 321&#10;&#10;（每行一個，可含成交價）"
+      style="width:100%;height:200px;background:#1e293b;border:1px solid #334155;border-radius:8px;
+             color:#e2e8f0;padding:10px;font-size:13px;resize:vertical;
+             font-family:-apple-system,system-ui;line-height:1.6;">
+    </textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button onclick="parseTWTextInput()"
+        style="flex:1;background:#7c3aed;color:white;padding:12px;border-radius:10px;font-size:13px;font-weight:700;">
+        ✅ 確認新增
+      </button>
+      <button onclick="closeModal('twTextModal')"
+        style="flex:1;background:#1e293b;color:#9ca3af;padding:12px;border-radius:10px;font-size:13px;font-weight:600;">
+        取消
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ Modal：K線圖 ════ -->
 
 <div id="chartModal" class="modal" onclick="closeModal('chartModal')">
@@ -294,7 +325,7 @@
 <div id="toast"></div>
 
 <!-- ══════════════════════════════════════════════════════════
-     投資大師 Pro MAX  v13.5
+     投資大師 Pro MAX  v13.6
      架構重大升級：美股（US）＋台股（TW）雙市場頁籤
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      資料架構：
@@ -1477,111 +1508,92 @@ window.exportCSV = ()=>{
 };
 
 /* ══════════════════════════════════════════════════════
-   OCR — 改用 Claude Vision API 辨識台股圖片
+   OCR 設計說明
    ─────────────────────────────────────────────────────
-   根本原因（已實測確認）：
-   - Tesseract eng：台積電→SWB，完全無法辨識中文
-   - Tesseract chi_tra：iPhone Safari 下 CDN 被封鎖，
-     語言包下載失敗，worker 無法建立
-
-   解法：改用 Claude Vision API（Anthropic API）
-   - 完美辨識繁體中文，準確率 99%+
-   - 不需要下載任何語言包，無網路依賴問題
-   - 直接從圖片提取股名和成交價，格式化後寫入
-   - 美股圖片繼續用 Tesseract eng（英文準確率高）
+   台股：避免使用繁中引擎（CDN 不穩會卡 80+ 分鐘）
+   改用「📝 台股文字」按鈕：貼上股名 → 對照表查代號
 ══════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════
-   台股 OCR — 最終正確方案
-   ──────────────────────────────────────────────────────
-   問題根本原因（已全部實測確認）：
-   ① Tesseract eng → 台積電輸出 "SWB"，無法辨識中文
-   ② Tesseract chi_tra 預設從 projectnaptha CDN 下載
-      → iPhone Safari 可能因網路/CORS 問題封鎖
-   ③ Claude Vision API → GitHub Pages 呼叫 api.anthropic.com
-      → CORS 封鎖，API 401/CORS Error
-
-   正確解法：
-   把 chi_tra.traineddata 與 index.html 放在同一目錄，
-   Tesseract 指定 langPath 從同網域載入，無 CORS 問題。
-
-   使用者需要做一次性操作（見說明）：
-   下載 chi_tra.traineddata → 與 index.html 放在同一目錄
-
-   備用方案（若語言包未就位）：
-   啟用 Anthropic API（需 ANTHROPIC_KEY）
+   OCR 模組 v13.6
+   ─────────────────────────────────────────────────────
+   台股：完全放棄 chi_tra（會無限卡住 80+ 分鐘）
+         改用「文字批次輸入」：使用者貼上股名→對照表查代號
+   美股：Tesseract eng（可靠，2-3秒完成）
 ══════════════════════════════════════════════════════ */
 
-/* Tesseract worker 快取 */
-let twOcrWorker  = null;
-
-/* 建立台股 OCR Worker
-   優先順序：
-   1. 本地語言包（./chi_tra.traineddata，與 index.html 同目錄）
-   2. 外部 CDN（tessdata.projectnaptha.com）
-   3. Anthropic API（需 ANTHROPIC_KEY）
-*/
-async function createTWWorker(){
-  // 方案1：本地語言包（需使用者在 GitHub repo 放置語言包）
-  try{
-    const testUrl = './chi_tra.traineddata';
-    const testRes = await fetch(testUrl, {method:'HEAD', signal:AbortSignal.timeout(3000)});
-    if(testRes.ok){
-      // 語言包存在，使用本地路徑
-      const wk = await Tesseract.createWorker('chi_tra', 1, {
-        langPath: './',
-        logger: m => { if(m.status==='recognizing text') console.log(`[OCR] ${Math.round(m.progress*100)}%`); }
-      });
-      console.log('[OCR] 使用本地語言包');
-      return { wk, type:'local' };
-    }
-  }catch(e){ console.log('[OCR] 本地語言包不存在，嘗試 CDN'); }
-
-  // 方案2：外部 CDN
-  try{
-    const wk = await Tesseract.createWorker('chi_tra', 1, {
-      logger: m => { if(m.status==='recognizing text') console.log(`[OCR] ${Math.round(m.progress*100)}%`); }
-    });
-    console.log('[OCR] 使用 CDN 語言包');
-    return { wk, type:'cdn' };
-  }catch(e){ console.log('[OCR] CDN 失敗:', e.message); }
-
-  return null;
-}
-
-/* Tesseract eng（美股 / 台股備用） */
+/* eng worker 快取 */
 let engOcrWorker = null;
-async function getEngOcrWorker(){
+async function getEngWorker(){
   if(engOcrWorker) return engOcrWorker;
   engOcrWorker = await Tesseract.createWorker('eng');
   return engOcrWorker;
 }
 
-/* 台股圖片辨識主函式 */
-async function ocrTWFile(file){
-  // 先嘗試 chi_tra（本地或 CDN）
-  const workerResult = await createTWWorker();
-  if(workerResult){
-    try{
-      const { text } = (await workerResult.wk.recognize(file)).data;
-      await workerResult.wk.terminate();
-      return { text, canReadChinese: true };
-    }catch(e){
-      try{ await workerResult.wk.terminate(); }catch{}
-      console.warn('[OCR] chi_tra recognize 失敗:', e.message);
+/* ── 台股文字批次輸入 ──
+   使用者從股票 App 複製股名（一行一個），貼入後
+   程式對照內建表查代號，批次新增到台股清單
+*/
+window.showTWTextInput = ()=>{
+  document.getElementById('twTextModal').style.display = 'flex';
+  document.getElementById('twTextArea').value = '';
+  document.getElementById('twTextArea').focus();
+};
+
+window.parseTWTextInput = ()=>{
+  const raw = document.getElementById('twTextArea').value;
+  if(!raw.trim()){ toast('⚠️ 請先貼上股票名稱'); return; }
+
+  if(!twNameMap){ twNameMap = { ...TW_BUILTIN_MAP }; twNameMapReady = true; }
+  buildTWNameMap().catch(()=>{});
+
+  const lines = raw.split(/[\n\r,，、；;]+/).map(l=>l.trim()).filter(l=>l.length>=2);
+  let added = 0, skipped = 0, notFound = [];
+
+  lines.forEach(name=>{
+    // 清除價格等雜訊（只取中文部分）
+    const cnOnly = name.replace(/[\d.,\s%+-]+/g,'').trim();
+    const candidates = [name, cnOnly].filter(s=>s.length>=2);
+    let ticker = null, matchedName = null;
+    for(const candidate of candidates){
+      ticker = twNameMap[candidate];
+      if(ticker){ matchedName = candidate; break; }
+      // 滑動視窗（由長到短）
+      for(let len=Math.min(candidate.length,8); len>=2 && !ticker; len--){
+        for(let i=0; i<=candidate.length-len; i++){
+          const chunk = candidate.substring(i,i+len);
+          if(twNameMap[chunk]){ ticker=twNameMap[chunk]; matchedName=chunk; break; }
+        }
+      }
+      if(ticker) break;
     }
-  }
+    if(!ticker){ notFound.push(name); return; }
+    if(stocks['TW'].find(s=>s.ticker===ticker)){ skipped++; return; }
+    const ns = mkStock(ticker, matchedName||name, '', 'TW');
+    ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+    stocks['TW'].push(ns); saveToDB(ns); added++;
+  });
 
-  // chi_tra 完全失敗 → eng（只能辨識數字，名稱靠對照表無法配對）
-  try{
-    const wk = await getEngOcrWorker();
-    const { data:{ text } } = await wk.recognize(file);
-    return { text, canReadChinese: false };
-  }catch(e){
-    throw new Error('OCR 引擎無法初始化：' + e.message);
-  }
-}
+  render();
+  closeModal('twTextModal');
+  let msg = `✅ 新增 ${added} 筆台股`;
+  if(skipped>0) msg += `，${skipped} 筆已存在`;
+  if(notFound.length>0) msg += `\n找不到：${notFound.slice(0,3).join('、')}${notFound.length>3?'...':''}`;
+  toast(msg, 5000);
 
+  if(added>0 && apiKey){
+    toast('⏳ 自動更新新增標的...', 2000);
+    const newStocks = stocks['TW'].slice(-added);
+    Promise.all(newStocks.map(s=>updateStock(s))).then(()=>{ render(); toast('✅ 更新完成'); });
+  }
+};
+
+/* ── 美股 / 台股 OCR（圖片） ──
+   台股圖片：eng 辨識數字代號（若圖片有4-6位數字代號）
+   美股圖片：eng 辨識英文代號
+   注意：台股「股名+成交價」格式無法用 eng 辨識中文股名
+         請改用「文字輸入」功能
+*/
 window.handleOCR = async event => {
   const files = Array.from(event.target.files||[]).slice(0,8);
   if(!files.length) return;
@@ -1591,94 +1603,51 @@ window.handleOCR = async event => {
   let allUS = 0, allTW = 0;
   const newUS = [], newTW = [];
 
-  /* 確保台股名稱對照表就緒 */
   if(!twNameMap){ twNameMap = { ...TW_BUILTIN_MAP }; twNameMapReady = true; }
-  buildTWNameMap().catch(()=>{});
 
   try{
-    /* ── 建立 eng worker（美股 + 台股數字備用）── */
+    /* eng worker，加 10 秒逾時保護 */
     let engWk = null;
-    try{ engWk = await Tesseract.createWorker('eng'); }catch(e){ console.warn('[OCR] eng worker 失敗:', e); }
-
-    /* ── 嘗試建立 chi_tra worker（台股中文）── */
-    let chiWk = null;
-    btn.innerHTML = `<span class="spin"></span> 載入語言包...`;
+    btn.innerHTML = `<span class="spin"></span> 初始化...`;
     try{
-      /* 先試本地語言包（與 index.html 同目錄，速度快）*/
-      const localOk = await fetch('./chi_tra.traineddata',
-        { method:'HEAD', signal: AbortSignal.timeout(3000) })
-        .then(r=>r.ok).catch(()=>false);
+      const engTimeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('eng 逾時')),10000));
+      engWk = await Promise.race([Tesseract.createWorker('eng'), engTimeout]);
+    }catch(e){ console.warn('[OCR] eng 失敗:', e.message); }
 
-      if(localOk){
-        /* 本地語言包存在：直接用，速度快 */
-        chiWk = await Tesseract.createWorker('chi_tra', 1, { langPath:'./' });
-        console.log('[OCR] ✅ chi_tra 本地語言包載入成功');
-      }else{
-        /* 本地不存在，嘗試 CDN，但只等 15 秒
-           若 15 秒內下載不完就放棄，不讓使用者等太久 */
-        console.log('[OCR] 本地語言包不存在，嘗試 CDN（最多等 15 秒）...');
-        const cdnTimeout = new Promise((_, reject)=>
-          setTimeout(()=>reject(new Error('CDN 下載逾時（15秒）')), 15000)
-        );
-        const createWorkerPromise = Tesseract.createWorker('chi_tra');
-        chiWk = await Promise.race([createWorkerPromise, cdnTimeout])
-          .catch(e=>{
-            console.warn('[OCR] CDN 下載失敗或逾時:', e.message);
-            return null;
-          });
-        if(chiWk) console.log('[OCR] ✅ chi_tra CDN 載入成功');
-      }
-    }catch(e){
-      console.warn('[OCR] chi_tra 無法載入:', e.message);
-      chiWk = null;
-    }
-
-    const canReadChinese = !!chiWk;
-
-    for(let i = 0; i < files.length; i++){
+    for(let i=0; i<files.length; i++){
       btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
+      if(!engWk){ toast(`第${i+1}張：OCR 引擎未就緒`); continue; }
       try{
-        /* ── 同時跑 eng 和 chi_tra（若有）── */
-        let engText = '', chiText = '';
-        if(engWk){
-          try{ engText = (await engWk.recognize(files[i])).data.text; }catch{}
-        }
-        if(chiWk){
-          try{ chiText = (await chiWk.recognize(files[i])).data.text; }catch{}
-        }
+        const { data:{ text } } = await engWk.recognize(files[i]);
+        let matchedTW=0, matchedUS=0;
 
-        let matchedTW = 0, matchedUS = 0;
+        /* 台股：掃 4-6 位數字代號（適用有顯示代號的截圖） */
+        const twAdded = new Set();
+        text.split('\n').forEach(line=>{
+          const m = line.match(/\b(\d{4,6})\b/);
+          if(!m) return;
+          const ticker = m[1];
+          if(twAdded.has(ticker)) return;
+          // 確認是合理的台股代號（第一位是 0-9）
+          if(parseInt(ticker) < 1000 || parseInt(ticker) > 99999) return;
+          // 同行取數字作為價格
+          const rest = line.replace(ticker,'');
+          const priceM = rest.match(/(\d[\d,]*\.?\d*)/);
+          const price = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
+          twAdded.add(ticker);
+          let s = stocks['TW'].find(x=>x.ticker===ticker);
+          if(s){ if(price>0)s.price=price; saveToDB(s); matchedTW++; }
+          else{
+            const ns=mkStock(ticker,ticker,'','TW');
+            if(price>0)ns.price=price;
+            ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
+            stocks['TW'].push(ns); saveToDB(ns); newTW.push(ns); matchedTW++;
+          }
+        });
 
-        /* ── 台股：用 chi_tra 文字 + 對照表 ── */
-        if(canReadChinese && chiText.trim()){
-          const twResults = scanTWNamesFromText(chiText);
-          const added = new Set();
-          twResults.forEach(({ ticker, name, price })=>{
-            if(added.has(ticker)) return;
-            added.add(ticker);
-            let s = stocks['TW'].find(x=>x.ticker===ticker);
-            if(s){
-              if(!s.name||s.name===s.ticker) s.name = name;
-              if(price>0) s.price = price;
-              saveToDB(s); matchedTW++;
-            }else{
-              const ns = mkStock(ticker, name, '', 'TW');
-              if(price>0) ns.price = price;
-              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
-              stocks['TW'].push(ns); saveToDB(ns); newTW.push(ns); matchedTW++;
-            }
-          });
-        }
-
-        /* ── 美股：用 eng 文字 + 嚴格過濾 ──
-           關鍵修復：若 chi_tra 已辨識到台股，
-           代表此圖片是台股截圖，eng 的亂碼不能加入美股
-           只有 chi_tra 完全沒辨識到任何台股，才考慮是美股圖片
-        ── */
-        const isTWImage = matchedTW > 0;  // 已判斷為台股圖片
-
-        if(!isTWImage && engText.trim()){
-          /* 確認圖片確實是美股（有合理的美股代號格式）*/
+        /* 美股：掃 2-6 位大寫英文代號 */
+        const isTWImage = matchedTW > 0;
+        if(!isTWImage){
           const skipWords = new Set([
             'THE','AND','FOR','FROM','THIS','THAT','WITH','HAVE','WILL','YOUR',
             'ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE','OUR','OUT','DAY',
@@ -1687,35 +1656,24 @@ window.handleOCR = async event => {
             'USD','NYSE','NASDAQ','ETF','IPO','CEO','CFO','HKD','TWD',
             'JPY','EUR','GBP','AUD','CHF','CAD','INR','CNY','OPEN','HIGH',
             'LOW','CLOSE','LAST','PREV','CHANGE','VOLUME','NAME','PRICE',
-            /* 台股圖片中常見的 eng 亂碼字 */
-            'ANG','BER','BES','BRE','EEL','EELS','ERE','ETE','ING',
-            'ONG','UNG','SWB','ATE','ITE','ALE','ANG','BNG','CNG',
           ]);
-
-          /* 額外過濾：代號必須能在 eng 辨識行的合理位置出現
-             美股截圖中，代號通常在行首且後面跟著數字（股價）
-             若一行找到很多「代號」且沒有股價，可能是亂碼 */
           const usAdded = new Set();
-          let validUSCount = 0;
-          engText.split('\n').forEach(line=>{
+          text.split('\n').forEach(line=>{
             const matches = [...line.matchAll(/\b([A-Z]{2,6})\b/g)];
             matches.forEach(m=>{
               const ticker = m[1];
-              if(skipWords.has(ticker)) return;
-              if(usAdded.has(ticker)) return;
-              /* 美股代號後面必須有合理的股價（數字），否則跳過 */
-              const rest = line.slice(m.index + ticker.length);
-              const priceM = rest.match(/([\d,]+\.?\d{2})/);
-              if(!priceM) return;  // 沒有股價 → 很可能是亂碼，跳過
+              if(skipWords.has(ticker)||usAdded.has(ticker)) return;
+              const rest = line.slice(m.index+ticker.length);
+              const priceM = rest.match(/(\d[\d,]*\.?\d{2})/);
+              if(!priceM) return;
               const price = parseFloat(priceM[1].replace(/,/g,''));
-              if(price <= 0 || price > 1000000) return;  // 不合理的價格，跳過
+              if(price<=0||price>1000000) return;
               usAdded.add(ticker);
-              validUSCount++;
-              let s = stocks['US'].find(x=>x.ticker===ticker);
+              let s=stocks['US'].find(x=>x.ticker===ticker);
               if(s){ if(price>0)s.price=price; saveToDB(s); matchedUS++; }
               else{
-                const ns = mkStock(ticker,ticker,'','US');
-                if(price>0) ns.price=price;
+                const ns=mkStock(ticker,ticker,'','US');
+                if(price>0)ns.price=price;
                 ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
                 stocks['US'].push(ns); saveToDB(ns); newUS.push(ns); matchedUS++;
               }
@@ -1723,67 +1681,42 @@ window.handleOCR = async event => {
           });
         }
 
-        allTW += matchedTW; allUS += matchedUS;
-        render();
-
-        /* 顯示此張結果 */
-        if(matchedTW > 0 || matchedUS > 0){
-          const parts = [];
-          if(matchedTW > 0) parts.push(`台股 ${matchedTW} 筆`);
-          if(matchedUS > 0) parts.push(`美股 ${matchedUS} 筆`);
+        allTW+=matchedTW; allUS+=matchedUS; render();
+        if(matchedTW>0||matchedUS>0){
+          const parts=[];
+          if(matchedTW>0) parts.push(`台股 ${matchedTW} 筆`);
+          if(matchedUS>0) parts.push(`美股 ${matchedUS} 筆`);
           toast(`第${i+1}張：${parts.join('、')}`);
         }else{
-          if(!canReadChinese){
-            toast(`第${i+1}張：未辨識到（台股需語言包，美股未找到代號）`);
-          }else{
-            toast(`第${i+1}張：未辨識到投資標的`);
-          }
+          toast(`第${i+1}張：未辨識到代號（台股股名請用「📝文字輸入」）`);
         }
-
-      }catch(imgErr){
-        console.warn(`第${i+1}張失敗:`, imgErr);
-        toast(`⚠️ 第${i+1}張失敗`);
-      }
-    }/* end for */
-
-    /* 終止 worker */
-    if(engWk) try{ await engWk.terminate(); engOcrWorker=null; }catch{}
-    if(chiWk) try{ await chiWk.terminate(); }catch{}
-
-    render();
-
-    /* 總結 */
-    if(allTW > 0 || allUS > 0){
-      const parts = [];
-      if(allTW > 0) parts.push(`台股 ${allTW} 筆`);
-      if(allUS > 0) parts.push(`美股 ${allUS} 筆`);
-      toast(`📸 共辨識：${parts.join('、')}`, 4000);
-    }else if(!canReadChinese){
-      toast('📸 台股 OCR 需要語言包\n請將 chi_tra.traineddata 上傳到 GitHub repo 與 index.html 同一目錄', 8000);
-    }else{
-      toast('📸 未辨識到任何投資標的', 3000);
+      }catch(e){ toast(`⚠️ 第${i+1}張失敗`); }
     }
 
-    /* 自動補全新股票資料 */
-    const allNew = [...newTW, ...newUS];
+    if(engWk) try{ await engWk.terminate(); engOcrWorker=null; }catch{}
+    render();
+
+    if(allTW>0||allUS>0){
+      const parts=[];
+      if(allTW>0) parts.push(`台股 ${allTW} 筆`);
+      if(allUS>0) parts.push(`美股 ${allUS} 筆`);
+      toast(`📸 共辨識：${parts.join('、')}`, 4000);
+    }else{
+      toast('📸 未辨識到代號\n台股股名請用「📝 文字輸入」功能', 5000);
+    }
+
+    const allNew=[...newTW,...newUS];
     if(allNew.length){
-      toast(`⏳ 補全 ${allNew.length} 筆新資料...`, 3000);
+      toast(`⏳ 補全 ${allNew.length} 筆新資料...`,3000);
       for(const s of allNew){ await updateStock(s); render(); }
       toast(`✅ ${allNew.length} 筆資料已補全`);
     }
-
   }catch(e){
-    console.error('OCR 主流程失敗:', e);
+    console.error('OCR 失敗:', e);
     toast(`❌ OCR 失敗：${e.message}`);
   }
-
-  btn.innerText = '📸 OCR';
-  btn.disabled  = false;
-  event.target.value = '';
+  btn.innerText='📸 OCR'; btn.disabled=false; event.target.value='';
 };
-
-
-
 /* ══════════════════════
    搜尋
 ══════════════════════ */
