@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.6</title>
+  <title>投資大師 Pro MAX v13.7</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.6</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.7</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -191,17 +191,20 @@
       <button onclick="updateAll()" style="background:#2563eb;color:white;">🔄 全部更新</button>
       <button onclick="exportCSV()" style="background:#27272a;color:#d4d4d8;border:1px solid #3f3f46;">📤 匯出</button>
       <button onclick="document.getElementById('csvInp').click()" style="background:#27272a;color:#d4d4d8;border:1px solid #3f3f46;">📥 匯入</button>
-      <button id="ocrBtn" onclick="document.getElementById('imgInp').click()" style="background:#059669;color:black;">📸 OCR</button>
+      <button id="ocrBtn" onclick="document.getElementById('imgInp').click()" style="background:#059669;color:black;">📸 美股 OCR</button>
       <button onclick="showTWTextInput()" style="background:#7c3aed;color:white;font-size:11px;padding:5px 10px;border-radius:6px;font-weight:600;">📝 台股文字</button>
     </div>
   </div>
 
   <div class="api-row">
-    <!-- 改用 text 類型避免 iOS Safari 對 password 欄位的自動清空保護 -->
+    <!-- 預設 readonly 防止 iOS Safari Password AutoFill 清空欄位
+         點擊「修改」才能編輯，儲存後自動 mask 顯示 -->
     <input id="apiKey" type="text" placeholder="Finnhub API Key（美股必填）"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-      style="font-family:monospace;letter-spacing:0.05em;color:#fbbf24;">
-    <button onclick="saveKey()" style="background:#3f3f46;color:white;font-size:11px;padding:5px 10px;border-radius:6px;">儲存</button>
+      readonly
+      style="font-family:monospace;letter-spacing:0.05em;color:#fbbf24;cursor:pointer;"
+      onclick="editKey()">
+    <button id="keyBtn" onclick="saveKey()" style="background:#3f3f46;color:white;font-size:11px;padding:5px 10px;border-radius:6px;">儲存</button>
   </div>
 
   <div class="add-row">
@@ -275,16 +278,21 @@
 <!-- ════ Modal：台股文字批次輸入 ════ -->
 
 <div id="twTextModal" class="modal" onclick="closeModal('twTextModal')">
-  <div class="mbox" onclick="event.stopPropagation()" style="max-width:500px;">
+  <div class="mbox" onclick="event.stopPropagation()" style="max-width:520px;">
     <div style="margin-bottom:12px;">
       <h3 style="font-size:15px;font-weight:700;color:#a78bfa;margin:0 0 6px;">📝 台股文字輸入</h3>
-      <p style="font-size:12px;color:#9ca3af;margin:0;">
-        從股票 App 複製股名後貼入（一行一個），程式自動查詢代號並新增到台股清單。<br>
-        支援格式：股名、股名+價格（如「台積電 568」）
+      <p style="font-size:11px;color:#9ca3af;margin:0 0 4px;line-height:1.5;">
+        從股票 App 截圖 → <strong style="color:#fbbf24;">長按文字 → 全選 → 複製</strong>（iOS 即時文字）<br>
+        貼上即可，程式自動解析股名與成交價：
       </p>
+      <div style="font-size:10px;color:#6b7280;background:#0f172a;padding:6px 8px;border-radius:6px;font-family:monospace;line-height:1.5;">
+        台積電 2250.00 25.00 1.10%<br>
+        鴻海 239.50 12.00 5.27%<br>
+        聯發科 3155.00 285.00 9.93%
+      </div>
     </div>
     <textarea id="twTextArea"
-      placeholder="貼上股票名稱，例如：&#10;台積電&#10;鴻海&#10;聯發科&#10;廣達 321&#10;&#10;（每行一個，可含成交價）"
+      placeholder="貼上 iOS 即時文字複製的內容，或直接輸入股名（一行一個）"
       style="width:100%;height:200px;background:#1e293b;border:1px solid #334155;border-radius:8px;
              color:#e2e8f0;padding:10px;font-size:13px;resize:vertical;
              font-family:-apple-system,system-ui;line-height:1.6;">
@@ -325,7 +333,7 @@
 <div id="toast"></div>
 
 <!-- ══════════════════════════════════════════════════════════
-     投資大師 Pro MAX  v13.6
+     投資大師 Pro MAX  v13.7
      架構重大升級：美股（US）＋台股（TW）雙市場頁籤
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      資料架構：
@@ -426,13 +434,55 @@ const chkOnline = ()=>{ document.getElementById('offBar').style.display = naviga
 window.addEventListener('online', chkOnline); window.addEventListener('offline', chkOnline); chkOnline();
 
 /* ══════════════════════
-   API Key — 雙重儲存，防 iOS 遺失
+   API Key — readonly+mask 模式
+   ─────────────────────
+   根本問題：iOS Safari Password AutoFill 會在頁面載入後
+            清空所有看起來像密碼的 input
+            無論 type="text"/autocomplete="off" 都無法防止
+
+   解法：
+   1. apiKey 始終以 localStorage 為唯一真實來源
+   2. input 預設 readonly + 顯示遮罩（●●●●●●ABCD）
+   3. 點擊 input 才解除 readonly 進入編輯模式
+   4. 即使 iOS 把 input 清空也不影響 apiKey 變數
+   5. 「儲存」/「修改」按鈕在兩種狀態間切換
 ══════════════════════ */
 function updateApiUI(){
   const el = document.getElementById('apiSt');
   if(apiKey){ el.style.color='#34d399'; el.innerText='🟢 Finnhub Key 已設定（美股）'; }
   else       { el.style.color='#9ca3af'; el.innerText='⚪ 未設定 Finnhub Key（台股可免費使用）'; }
 }
+
+/* 生成遮罩字串：●●●●●●●●●●●●●●●●●●●●●●ABCD（只顯示尾4碼） */
+function maskKey(k){
+  if(!k || k.length < 4) return '';
+  return '●'.repeat(Math.max(20, k.length-4)) + k.slice(-4);
+}
+
+/* 把 input 設為「已儲存」狀態：唯讀 + 顯示遮罩 */
+function setKeyReadonly(){
+  const inp = document.getElementById('apiKey');
+  const btn = document.getElementById('keyBtn');
+  if(inp){
+    inp.value    = apiKey ? maskKey(apiKey) : '';
+    inp.readOnly = true;
+    inp.style.cursor = 'pointer';
+  }
+  if(btn) btn.innerText = apiKey ? '修改' : '儲存';
+}
+
+/* 把 input 設為「編輯中」狀態：可編輯 + 顯示完整 Key */
+window.editKey = ()=>{
+  const inp = document.getElementById('apiKey');
+  const btn = document.getElementById('keyBtn');
+  if(!inp) return;
+  inp.readOnly = false;
+  inp.value    = apiKey || '';
+  inp.style.cursor = 'text';
+  inp.focus();
+  inp.select();
+  if(btn) btn.innerText = '儲存';
+};
 
 function restoreApiKey(){
   /* 優先從 localStorage，備援從 sessionStorage */
@@ -441,26 +491,45 @@ function restoreApiKey(){
              || '';
   if(saved){
     apiKey = saved;
-    /* 確保兩個 storage 都有 */
+    /* 同步雙重儲存 */
     try{ localStorage.setItem('FINNHUB_KEY', saved); }catch{}
     try{ sessionStorage.setItem('FINNHUB_KEY', saved); }catch{}
-    const inp = document.getElementById('apiKey');
-    if(inp) inp.value = saved;
   }
+  setKeyReadonly();
   updateApiUI();
 }
-/* 延遲填入確保 DOM 就緒，並多次嘗試防止 iOS 清空 */
-setTimeout(restoreApiKey, 50);
+
+/* 多次延遲執行，確保 iOS 不論何時清空都能補回 */
+setTimeout(restoreApiKey,  50);
 setTimeout(restoreApiKey, 300);
 setTimeout(restoreApiKey, 800);
+setTimeout(restoreApiKey, 2000);
+setTimeout(restoreApiKey, 5000);
 
 window.saveKey = ()=>{
-  const k = document.getElementById('apiKey').value.trim();
+  const inp = document.getElementById('apiKey');
+  const btn = document.getElementById('keyBtn');
+  if(!inp) return;
+
+  /* 如果目前是「已儲存」狀態（readonly），按鈕功能變為「修改」 */
+  if(inp.readOnly){
+    window.editKey();
+    return;
+  }
+
+  /* 編輯模式下，按「儲存」 */
+  const k = inp.value.trim();
+  /* 防止把遮罩字當作 key 存入 */
+  if(k.includes('●')){
+    toast('⚠️ 請輸入新的 API Key');
+    return;
+  }
   if(!k){ toast('⚠️ API Key 不能為空'); return; }
   apiKey = k;
-  /* 雙重儲存：localStorage（持久）+ sessionStorage（當次會話備援） */
+  /* 雙重儲存 */
   try{ localStorage.setItem('FINNHUB_KEY', k); }catch(e){ console.warn('localStorage 失敗:', e); }
   try{ sessionStorage.setItem('FINNHUB_KEY', k); }catch(e){ console.warn('sessionStorage 失敗:', e); }
+  setKeyReadonly();
   updateApiUI();
   toast('✅ Finnhub API Key 已儲存');
 };
@@ -1515,7 +1584,7 @@ window.exportCSV = ()=>{
 ══════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════
-   OCR 模組 v13.6
+   OCR 模組 v13.7
    ─────────────────────────────────────────────────────
    台股：完全放棄 chi_tra（會無限卡住 80+ 分鐘）
          改用「文字批次輸入」：使用者貼上股名→對照表查代號
@@ -1547,44 +1616,184 @@ window.parseTWTextInput = ()=>{
   if(!twNameMap){ twNameMap = { ...TW_BUILTIN_MAP }; twNameMapReady = true; }
   buildTWNameMap().catch(()=>{});
 
-  const lines = raw.split(/[\n\r,，、；;]+/).map(l=>l.trim()).filter(l=>l.length>=2);
-  let added = 0, skipped = 0, notFound = [];
+  /* ══════════════════════════════════════════════
+     強化解析邏輯（支援 iOS 即時文字複製的多種格式）
 
-  lines.forEach(name=>{
-    // 清除價格等雜訊（只取中文部分）
-    const cnOnly = name.replace(/[\d.,\s%+-]+/g,'').trim();
-    const candidates = [name, cnOnly].filter(s=>s.length>=2);
-    let ticker = null, matchedName = null;
-    for(const candidate of candidates){
-      ticker = twNameMap[candidate];
-      if(ticker){ matchedName = candidate; break; }
-      // 滑動視窗（由長到短）
-      for(let len=Math.min(candidate.length,8); len>=2 && !ticker; len--){
-        for(let i=0; i<=candidate.length-len; i++){
-          const chunk = candidate.substring(i,i+len);
-          if(twNameMap[chunk]){ ticker=twNameMap[chunk]; matchedName=chunk; break; }
+     支援格式：
+     1. 純股名：「台積電」
+     2. 股名+股號：「2330 台積電」「台積電 2330」
+     3. iOS 即時文字（含完整資料）：
+        「台積電 2250.00 25.00 1.10%」
+        「萬在 41.50 0.85 2.01%」
+     4. 跨行分隔：股名一行、價格一行
+        「台積電\n2250.00\n25.00\n1.10%」
+     5. 多種分隔符：空白、Tab、逗號、頓號、分號、換行
+     6. 雜訊行：「股名 成交 漲跌 漲幅」「自選庫存」等表頭
+
+     策略：
+     1. 用換行先分行（每行可能是一檔股票）
+     2. 對每行嘗試 a) 完整比對 b) 取中文部分 c) 滑動視窗
+     3. 同行第一個合理數字（非百分比、非漲跌）作為成交價
+     4. 智慧過濾雜訊行（標題列、市場指數行）
+  ══════════════════════════════════════════════ */
+
+  /* 雜訊詞黑名單 */
+  const HEADER_WORDS = new Set([
+    '股名','成交','漲跌','漲幅','自選','報價','下單','帳務','更多',
+    '行動','自選庫存','加權指數','加權','指數','庫存','行動自選',
+    '名稱','代號','價格','現價','收盤','開盤','最高','最低','成交量',
+    '行動自選1','行動自選2','行動自選3','行動自選4','行動自選5',
+  ]);
+
+  const lines = raw.split(/[\n\r]+/).map(l=>l.trim()).filter(l=>l.length>=1);
+
+  let added = 0, skipped = 0;
+  const notFound = [];
+  const addedTickers = new Set();
+
+  /* 內嵌函式：嘗試從一個字串找出對應的台股代號 */
+  function findTicker(text){
+    const t = text.trim();
+    if(!t) return null;
+    /* 1. 完整比對 */
+    if(twNameMap[t]) return { ticker: twNameMap[t], name: t };
+    /* 2. 去除常見後綴的比對 */
+    const cleaned = t.replace(/股份有限公司|有限公司|公司$/g,'').trim();
+    if(cleaned !== t && twNameMap[cleaned]) return { ticker: twNameMap[cleaned], name: cleaned };
+    /* 3. 滑動視窗（由長到短） */
+    for(let len = Math.min(t.length, 12); len >= 2; len--){
+      for(let i = 0; i <= t.length - len; i++){
+        const chunk = t.substring(i, i + len);
+        if(HEADER_WORDS.has(chunk)) continue;
+        if(twNameMap[chunk]) return { ticker: twNameMap[chunk], name: chunk };
+      }
+    }
+    return null;
+  }
+
+  /* 內嵌函式：從一行字串中擷取合理的成交價
+     排除：百分比（%）、漲跌幅（小於 100 的小數）、純整數股號（4位數）
+     優先：第一個 >= 1 且不是百分比的數字 */
+  function extractPrice(line, alreadyMatched){
+    /* 排除百分比 */
+    const cleaned = line.replace(/[\d,]+\.\d+\s*%/g,'').replace(/\b\d+\s*%/g,'');
+    /* 取所有數字（含小數） */
+    const nums = [...cleaned.matchAll(/(\d[\d,]*\.?\d*)/g)].map(m=>parseFloat(m[1].replace(/,/g,'')));
+    if(nums.length === 0) return 0;
+    /* 排除已匹配為股號的數字 */
+    const filtered = nums.filter(n=>{
+      if(alreadyMatched && Math.round(n) === parseInt(alreadyMatched)) return false;
+      return n > 0 && n < 1000000;
+    });
+    if(filtered.length === 0) return 0;
+    /* 第一個就是成交價（通常 iOS 即時文字格式：股名 成交價 漲跌 漲幅%） */
+    return filtered[0];
+  }
+
+  /* 主迴圈：逐行處理 */
+  for(let i = 0; i < lines.length; i++){
+    const line = lines[i];
+
+    /* 跳過明顯的標題行 */
+    if(HEADER_WORDS.has(line)) continue;
+    /* 跳過純百分比、純符號行 */
+    if(/^[\s\-+→↑↓％%]+$/.test(line)) continue;
+
+    /* 跨行合併：若本行只有中文沒有數字，且下一行只有數字，合併處理 */
+    let workLine = line;
+    if(!/\d/.test(line) && i + 1 < lines.length && /\d/.test(lines[i+1])){
+      workLine = line + ' ' + lines[i+1];
+    }
+
+    /* 嘗試找股票代號 */
+    /* a) 整行嘗試 */
+    let result = null;
+    /* a1. 直接整行查（適用「台積電」這種純股名）*/
+    result = findTicker(workLine);
+
+    /* b) 取出中文部分查 */
+    if(!result){
+      const cnMatch = workLine.match(/[\u4e00-\u9fff][\u4e00-\u9fff\w\-+]*/g);
+      if(cnMatch){
+        for(const cn of cnMatch){
+          if(cn.length < 2) continue;
+          if(HEADER_WORDS.has(cn)) continue;
+          result = findTicker(cn);
+          if(result) break;
         }
       }
-      if(ticker) break;
     }
-    if(!ticker){ notFound.push(name); return; }
-    if(stocks['TW'].find(s=>s.ticker===ticker)){ skipped++; return; }
-    const ns = mkStock(ticker, matchedName||name, '', 'TW');
-    ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
-    stocks['TW'].push(ns); saveToDB(ns); added++;
-  });
+
+    /* c) 取出純數字（4-6位）作為股號查反查 */
+    if(!result){
+      const numMatch = workLine.match(/\b(\d{4,6}[A-Z]?)\b/);
+      if(numMatch){
+        const code = numMatch[1];
+        /* 用對照表反查確認這是真的股號 */
+        const isValidCode = Object.values(TW_BUILTIN_MAP).includes(code)
+                          || (twNameMap && Object.values(twNameMap).includes(code));
+        if(isValidCode){
+          /* 找對應的股名 */
+          const allEntries = Object.entries(twNameMap||TW_BUILTIN_MAP);
+          const found = allEntries.find(([n,c]) => c === code);
+          result = { ticker: code, name: found ? found[0] : code };
+        }
+      }
+    }
+
+    if(!result){
+      /* 取出可疑的中文詞當作 notFound */
+      const cnMatch = workLine.match(/[\u4e00-\u9fff]{2,}/);
+      if(cnMatch && !HEADER_WORDS.has(cnMatch[0])){
+        notFound.push(cnMatch[0]);
+      }
+      continue;
+    }
+
+    if(addedTickers.has(result.ticker)) continue;
+    addedTickers.add(result.ticker);
+
+    /* 擷取成交價 */
+    const price = extractPrice(workLine, result.ticker);
+
+    /* 寫入或更新台股 */
+    const existing = stocks['TW'].find(s=>s.ticker===result.ticker);
+    if(existing){
+      if(price > 0) existing.price = price;
+      if(!existing.name || existing.name === existing.ticker) existing.name = result.name;
+      saveToDB(existing);
+      skipped++;
+    }else{
+      const ns = mkStock(result.ticker, result.name, '', 'TW');
+      if(price > 0) ns.price = price;
+      ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+      stocks['TW'].push(ns);
+      saveToDB(ns);
+      added++;
+    }
+  }
 
   render();
   closeModal('twTextModal');
-  let msg = `✅ 新增 ${added} 筆台股`;
-  if(skipped>0) msg += `，${skipped} 筆已存在`;
-  if(notFound.length>0) msg += `\n找不到：${notFound.slice(0,3).join('、')}${notFound.length>3?'...':''}`;
-  toast(msg, 5000);
 
-  if(added>0 && apiKey){
-    toast('⏳ 自動更新新增標的...', 2000);
+  /* 顯示結果 */
+  const parts = [];
+  if(added > 0)   parts.push(`✅ 新增 ${added} 筆`);
+  if(skipped > 0) parts.push(`已存在 ${skipped} 筆已更新價格`);
+  if(notFound.length > 0){
+    const list = [...new Set(notFound)].slice(0,5).join('、');
+    parts.push(`⚠️ ${notFound.length} 筆找不到代號：${list}${notFound.length>5?'...':''}`);
+  }
+  toast(parts.join('\n') || '⚠️ 未識別到任何股票', 6000);
+
+  /* 自動補全新股票的完整資料 */
+  if(added > 0){
     const newStocks = stocks['TW'].slice(-added);
-    Promise.all(newStocks.map(s=>updateStock(s))).then(()=>{ render(); toast('✅ 更新完成'); });
+    toast(`⏳ 補全 ${added} 筆新資料...`, 2000);
+    Promise.all(newStocks.map(s=>updateStock(s))).then(()=>{
+      render();
+      toast(`✅ ${added} 筆資料已補全`);
+    });
   }
 };
 
@@ -1715,7 +1924,7 @@ window.handleOCR = async event => {
     console.error('OCR 失敗:', e);
     toast(`❌ OCR 失敗：${e.message}`);
   }
-  btn.innerText='📸 OCR'; btn.disabled=false; event.target.value='';
+  btn.innerText='📸 美股 OCR'; btn.disabled=false; event.target.value='';
 };
 /* ══════════════════════
    搜尋
