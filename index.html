@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.7</title>
+  <title>投資大師 Pro MAX v13.8</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.7</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.8</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -333,7 +333,7 @@
 <div id="toast"></div>
 
 <!-- ══════════════════════════════════════════════════════════
-     投資大師 Pro MAX  v13.7
+     投資大師 Pro MAX  v13.8
      架構重大升級：美股（US）＋台股（TW）雙市場頁籤
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      資料架構：
@@ -1584,7 +1584,7 @@ window.exportCSV = ()=>{
 ══════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════
-   OCR 模組 v13.7
+   OCR 模組 v13.8
    ─────────────────────────────────────────────────────
    台股：完全放棄 chi_tra（會無限卡住 80+ 分鐘）
          改用「文字批次輸入」：使用者貼上股名→對照表查代號
@@ -1797,25 +1797,108 @@ window.parseTWTextInput = ()=>{
   }
 };
 
-/* ── 美股 / 台股 OCR（圖片） ──
-   台股圖片：eng 辨識數字代號（若圖片有4-6位數字代號）
-   美股圖片：eng 辨識英文代號
-   注意：台股「股名+成交價」格式無法用 eng 辨識中文股名
-         請改用「文字輸入」功能
+/* ── 美股 OCR ──
+   設計原則：
+   ✅ 此按鈕「只」辨識美股，絕不寫入台股
+   ✅ 同時支援「股票代號」(AAPL) 和「公司名稱」(Apple, Tesla)
+   ✅ 智慧過濾：英文單字、數字、雜訊
+   ✅ 美股股票代號規則：1-5 個大寫英文字母（可含 . 如 BRK.B）
+   
+   台股請改用「📝 台股文字」按鈕（紫色按鈕）
 */
+
+/* 美股常見公司名稱 → 代號 對照表（涵蓋熱門 200+ 檔） */
+const US_COMPANY_MAP = {
+  // 科技七巨頭
+  'APPLE':'AAPL','MICROSOFT':'MSFT','GOOGLE':'GOOGL','ALPHABET':'GOOGL',
+  'AMAZON':'AMZN','TESLA':'TSLA','META':'META','FACEBOOK':'META',
+  'NVIDIA':'NVDA','NETFLIX':'NFLX',
+  // 半導體
+  'AMD':'AMD','INTEL':'INTC','BROADCOM':'AVGO','QUALCOMM':'QCOM',
+  'TSMC':'TSM','MICRON':'MU','APPLIED MATERIALS':'AMAT','LAM RESEARCH':'LRCX',
+  'KLA':'KLAC','ASML':'ASML','MARVELL':'MRVL','TEXAS INSTRUMENTS':'TXN',
+  'ANALOG DEVICES':'ADI','MICROCHIP':'MCHP','ON SEMICONDUCTOR':'ON',
+  'SUPER MICRO':'SMCI','SUPERMICRO':'SMCI','ARM':'ARM',
+  // 軟體/雲端
+  'ORACLE':'ORCL','SALESFORCE':'CRM','ADOBE':'ADBE','SAP':'SAP',
+  'SERVICENOW':'NOW','SNOWFLAKE':'SNOW','DATADOG':'DDOG','MONGODB':'MDB',
+  'PALANTIR':'PLTR','CROWDSTRIKE':'CRWD','ZSCALER':'ZS','CLOUDFLARE':'NET',
+  'SHOPIFY':'SHOP','SQUARE':'SQ','BLOCK':'SQ','PAYPAL':'PYPL',
+  // 金融
+  'JPMORGAN':'JPM','BANK OF AMERICA':'BAC','WELLS FARGO':'WFC','CITIGROUP':'C',
+  'GOLDMAN':'GS','MORGAN STANLEY':'MS','BERKSHIRE':'BRK.B','VISA':'V',
+  'MASTERCARD':'MA','AMERICAN EXPRESS':'AXP','BLACKROCK':'BLK','SCHWAB':'SCHW',
+  // 消費/零售
+  'WALMART':'WMT','COSTCO':'COST','TARGET':'TGT','HOME DEPOT':'HD','LOWE':'LOW',
+  'MCDONALD':'MCD','STARBUCKS':'SBUX','NIKE':'NKE','COCA-COLA':'KO','PEPSICO':'PEP',
+  'COCACOLA':'KO','PROCTER':'PG','UNILEVER':'UL','DISNEY':'DIS',
+  // 製藥/醫療
+  'JOHNSON':'JNJ','PFIZER':'PFE','ELI LILLY':'LLY','LILLY':'LLY',
+  'MERCK':'MRK','ABBVIE':'ABBV','BRISTOL':'BMY','UNITEDHEALTH':'UNH',
+  'AMGEN':'AMGN','NOVO NORDISK':'NVO','MODERNA':'MRNA','GILEAD':'GILD',
+  // 能源
+  'EXXON':'XOM','CHEVRON':'CVX','SHELL':'SHEL','BP':'BP',
+  'CONOCOPHILLIPS':'COP','OCCIDENTAL':'OXY','SCHLUMBERGER':'SLB',
+  // 工業/航空
+  'BOEING':'BA','LOCKHEED':'LMT','RAYTHEON':'RTX','CATERPILLAR':'CAT',
+  'DEERE':'DE','GE':'GE','GENERAL ELECTRIC':'GE','HONEYWELL':'HON',
+  'UNION PACIFIC':'UNP','UPS':'UPS','FEDEX':'FDX','DELTA':'DAL',
+  'AMERICAN AIRLINES':'AAL','SOUTHWEST':'LUV','UNITED AIRLINES':'UAL',
+  // 電動車
+  'RIVIAN':'RIVN','LUCID':'LCID','NIO':'NIO','XPENG':'XPEV','LI AUTO':'LI',
+  'FORD':'F','GM':'GM','GENERAL MOTORS':'GM','STELLANTIS':'STLA','TOYOTA':'TM',
+  // 半導體 ETF
+  'SOXL':'SOXL','SOXS':'SOXS','SMH':'SMH','SOXX':'SOXX',
+  // 主要 ETF
+  'SPY':'SPY','QQQ':'QQQ','VOO':'VOO','VTI':'VTI','IWM':'IWM','DIA':'DIA',
+  'TQQQ':'TQQQ','SQQQ':'SQQQ','SPXL':'SPXL','SPXS':'SPXS',
+  'IVV':'IVV','VEA':'VEA','VWO':'VWO','BND':'BND','TLT':'TLT',
+  // 中概股
+  'ALIBABA':'BABA','BAIDU':'BIDU','JD':'JD','PINDUODUO':'PDD','TENCENT':'TCEHY',
+  // 其他熱門
+  'UBER':'UBER','LYFT':'LYFT','AIRBNB':'ABNB','SNAP':'SNAP','PINTEREST':'PINS',
+  'SPOTIFY':'SPOT','ROKU':'ROKU','ZOOM':'ZM','DOORDASH':'DASH','ROBINHOOD':'HOOD',
+  'COINBASE':'COIN','MICROSTRATEGY':'MSTR','MARA':'MARA','RIOT':'RIOT',
+};
+
+/* 美股雜訊單字（不是股票代號的常見英文字） */
+const US_SKIP_WORDS = new Set([
+  'THE','AND','FOR','FROM','THIS','THAT','WITH','HAVE','WILL','YOUR','HAS','ITS',
+  'ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE','OUR','OUT','DAY','HIM','HIS',
+  'GET','HOW','MAY','NEW','NOW','OLD','SEE','TWO','WHO','BOY','DID','LET','PUT',
+  'SAY','SHE','TOO','USE','YOU','ANY','HAD','MAN','OWN','RUN','TRY','WAY','GOT',
+  'BIG','TOP','LOW','END','SET','PUT','CUT','BUY','SELL','HOLD','CALL','PUT',
+  // 金融/股市常見字
+  'USD','EUR','JPY','GBP','HKD','TWD','AUD','CAD','CHF','INR','CNY','KRW',
+  'NYSE','NASDAQ','ETF','IPO','CEO','CFO','CTO','EPS','PE','PEG','PBR',
+  'OPEN','HIGH','LOW','CLOSE','LAST','PREV','VOL','VOLUME','AVG','MAX','MIN',
+  'NAME','PRICE','CHANGE','CHG','PERCENT','PCT','TICKER','SYMBOL','STOCK',
+  'BID','ASK','MID','RANGE','RATIO','YIELD','DIVIDEND','DIV','MARKET','CAP',
+  'TIME','DATE','YEAR','MONTH','WEEK','HOUR','MIN','SEC','AM','PM','EST','PST',
+  // App 介面常見字
+  'MENU','HOME','BACK','NEXT','PREV','EDIT','SAVE','DONE','GO','OK','YES','NO',
+  'ON','OFF','UP','DOWN','LEFT','RIGHT','VIEW','SHOW','HIDE','MORE','LESS',
+  'ADD','NEW','DEL','REMOVE','SEARCH','FILTER','SORT','REFRESH','UPDATE',
+  // 縮寫月份
+  'JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC',
+  'MON','TUE','WED','THU','FRI','SAT','SUN',
+  // 其他
+  'YTD','MTD','QTD','EOD','EOQ','EOY','PRE','POST','AFTER','HOURS','REGULAR',
+  'NDX','SPX','DJI','VIX','TICK','TRIN','ADV','DEC','UNCH','RSI','MACD',
+  'PROD','TEST','BETA','ALPHA','DEMO','LITE','PRO','MAX','MINI','PLUS',
+]);
+
 window.handleOCR = async event => {
   const files = Array.from(event.target.files||[]).slice(0,8);
   if(!files.length) return;
   const btn = document.getElementById('ocrBtn');
   btn.disabled = true;
   const total = files.length;
-  let allUS = 0, allTW = 0;
-  const newUS = [], newTW = [];
-
-  if(!twNameMap){ twNameMap = { ...TW_BUILTIN_MAP }; twNameMapReady = true; }
+  let allUS = 0;
+  const newUS = [];
 
   try{
-    /* eng worker，加 10 秒逾時保護 */
+    /* eng worker，10 秒逾時保護 */
     let engWk = null;
     btn.innerHTML = `<span class="spin"></span> 初始化...`;
     try{
@@ -1826,99 +1909,114 @@ window.handleOCR = async event => {
     for(let i=0; i<files.length; i++){
       btn.innerHTML = `<span class="spin"></span> 辨識 ${i+1}/${total}`;
       if(!engWk){ toast(`第${i+1}張：OCR 引擎未就緒`); continue; }
+
       try{
         const { data:{ text } } = await engWk.recognize(files[i]);
-        let matchedTW=0, matchedUS=0;
+        let matchedUS = 0;
+        const usAdded = new Set();
 
-        /* 台股：掃 4-6 位數字代號（適用有顯示代號的截圖） */
-        const twAdded = new Set();
+        /* === 策略 1：股票代號（1-5 個大寫英文，可含 .） ===
+           美股代號規則：
+           - 一般股：1-5 個大寫字母（如 AAPL、MSFT、F、T）
+           - 含類別股：BRK.A、BRK.B
+           - 必須在「行首」或前面是空白/分隔符
+           - 必須後面接「合理股價」（>=0.01 且 <100萬）
+        */
         text.split('\n').forEach(line=>{
-          const m = line.match(/\b(\d{4,6})\b/);
-          if(!m) return;
-          const ticker = m[1];
-          if(twAdded.has(ticker)) return;
-          // 確認是合理的台股代號（第一位是 0-9）
-          if(parseInt(ticker) < 1000 || parseInt(ticker) > 99999) return;
-          // 同行取數字作為價格
-          const rest = line.replace(ticker,'');
-          const priceM = rest.match(/(\d[\d,]*\.?\d*)/);
-          const price = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
-          twAdded.add(ticker);
-          let s = stocks['TW'].find(x=>x.ticker===ticker);
-          if(s){ if(price>0)s.price=price; saveToDB(s); matchedTW++; }
-          else{
-            const ns=mkStock(ticker,ticker,'','TW');
-            if(price>0)ns.price=price;
-            ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
-            stocks['TW'].push(ns); saveToDB(ns); newTW.push(ns); matchedTW++;
-          }
+          /* 找代號 (^或空白後) [A-Z]{1,5}(.[A-Z])? */
+          const tickerRe = /(?:^|[\s|│｜])([A-Z]{1,5}(?:\.[A-Z])?)\b/g;
+          const matches = [...line.matchAll(tickerRe)];
+          matches.forEach(m=>{
+            const ticker = m[1];
+            /* 過濾規則 */
+            if(US_SKIP_WORDS.has(ticker)) return;
+            if(US_SKIP_WORDS.has(ticker.replace('.',''))) return;
+            if(usAdded.has(ticker)) return;
+            /* 單字母代號需要更嚴格驗證（避免誤抓） */
+            if(ticker.length === 1 && !['F','T','V','C','M','X','O','D'].includes(ticker)) return;
+
+            /* 同行必須有合理的股價 */
+            const rest = line.slice(m.index + m[0].length);
+            /* 找形如 123.45 或 1,234.56 的數字 */
+            const priceM = rest.match(/(\d{1,3}(?:,\d{3})*\.\d{2,4}|\d+\.\d{2,4})/);
+            if(!priceM) return;
+            const price = parseFloat(priceM[1].replace(/,/g,''));
+            if(price <= 0 || price > 1000000) return;
+
+            usAdded.add(ticker);
+            let s = stocks['US'].find(x=>x.ticker===ticker);
+            if(s){
+              if(price>0) s.price = price;
+              saveToDB(s); matchedUS++;
+            }else{
+              const ns = mkStock(ticker, ticker, '', 'US');
+              if(price>0) ns.price = price;
+              ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+              stocks['US'].push(ns); saveToDB(ns); newUS.push(ns); matchedUS++;
+            }
+          });
         });
 
-        /* 美股：掃 2-6 位大寫英文代號 */
-        const isTWImage = matchedTW > 0;
-        if(!isTWImage){
-          const skipWords = new Set([
-            'THE','AND','FOR','FROM','THIS','THAT','WITH','HAVE','WILL','YOUR',
-            'ARE','NOT','BUT','ALL','CAN','HER','WAS','ONE','OUR','OUT','DAY',
-            'GET','HAS','HIM','HIS','HOW','ITS','MAY','NEW','NOW','OLD','SEE',
-            'TWO','WHO','BOY','DID','LET','PUT','SAY','SHE','TOO','USE',
-            'USD','NYSE','NASDAQ','ETF','IPO','CEO','CFO','HKD','TWD',
-            'JPY','EUR','GBP','AUD','CHF','CAD','INR','CNY','OPEN','HIGH',
-            'LOW','CLOSE','LAST','PREV','CHANGE','VOLUME','NAME','PRICE',
-          ]);
-          const usAdded = new Set();
-          text.split('\n').forEach(line=>{
-            const matches = [...line.matchAll(/\b([A-Z]{2,6})\b/g)];
-            matches.forEach(m=>{
-              const ticker = m[1];
-              if(skipWords.has(ticker)||usAdded.has(ticker)) return;
-              const rest = line.slice(m.index+ticker.length);
-              const priceM = rest.match(/(\d[\d,]*\.?\d{2})/);
-              if(!priceM) return;
-              const price = parseFloat(priceM[1].replace(/,/g,''));
-              if(price<=0||price>1000000) return;
-              usAdded.add(ticker);
-              let s=stocks['US'].find(x=>x.ticker===ticker);
-              if(s){ if(price>0)s.price=price; saveToDB(s); matchedUS++; }
-              else{
-                const ns=mkStock(ticker,ticker,'','US');
-                if(price>0)ns.price=price;
-                ns.updated=new Date().toLocaleString('zh-TW',{hour12:false});
-                stocks['US'].push(ns); saveToDB(ns); newUS.push(ns); matchedUS++;
-              }
-            });
-          });
+        /* === 策略 2：公司名稱反查 ===
+           當圖片顯示公司全名而非代號時，例如「Apple Inc. 178.50」
+           掃描整段文字，找出 US_COMPANY_MAP 中的關鍵字
+        */
+        const textUpper = text.toUpperCase();
+        for(const [companyName, ticker] of Object.entries(US_COMPANY_MAP)){
+          if(usAdded.has(ticker)) continue;
+          /* 公司名稱必須以單字邊界出現 */
+          const re = new RegExp('\\b' + companyName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\b');
+          const match = textUpper.match(re);
+          if(!match) continue;
+
+          /* 取出該公司名稱所在行的價格 */
+          const matchIdx  = textUpper.indexOf(match[0]);
+          const lineStart = textUpper.lastIndexOf('\n', matchIdx) + 1;
+          const lineEnd   = textUpper.indexOf('\n', matchIdx);
+          const line = text.slice(lineStart, lineEnd > 0 ? lineEnd : undefined);
+          const priceM = line.match(/(\d{1,3}(?:,\d{3})*\.\d{2,4}|\d+\.\d{2,4})/);
+          const price = priceM ? parseFloat(priceM[1].replace(/,/g,'')) : 0;
+
+          usAdded.add(ticker);
+          let s = stocks['US'].find(x=>x.ticker===ticker);
+          if(s){
+            if(price>0) s.price = price;
+            saveToDB(s); matchedUS++;
+          }else{
+            const ns = mkStock(ticker, ticker, '', 'US');
+            if(price>0) ns.price = price;
+            ns.updated = new Date().toLocaleString('zh-TW',{hour12:false});
+            stocks['US'].push(ns); saveToDB(ns); newUS.push(ns); matchedUS++;
+          }
         }
 
-        allTW+=matchedTW; allUS+=matchedUS; render();
-        if(matchedTW>0||matchedUS>0){
-          const parts=[];
-          if(matchedTW>0) parts.push(`台股 ${matchedTW} 筆`);
-          if(matchedUS>0) parts.push(`美股 ${matchedUS} 筆`);
-          toast(`第${i+1}張：${parts.join('、')}`);
+        allUS += matchedUS;
+        render();
+        if(matchedUS > 0){
+          toast(`第${i+1}張：辨識 ${matchedUS} 檔美股`);
         }else{
-          toast(`第${i+1}張：未辨識到代號（台股股名請用「📝文字輸入」）`);
+          toast(`第${i+1}張：未辨識到美股代號或公司名稱`);
         }
-      }catch(e){ toast(`⚠️ 第${i+1}張失敗`); }
+      }catch(e){
+        console.warn('[OCR] 辨識失敗:', e);
+        toast(`⚠️ 第${i+1}張辨識失敗`);
+      }
     }
 
     if(engWk) try{ await engWk.terminate(); engOcrWorker=null; }catch{}
     render();
 
-    if(allTW>0||allUS>0){
-      const parts=[];
-      if(allTW>0) parts.push(`台股 ${allTW} 筆`);
-      if(allUS>0) parts.push(`美股 ${allUS} 筆`);
-      toast(`📸 共辨識：${parts.join('、')}`, 4000);
+    if(allUS > 0){
+      toast(`📸 共辨識 ${allUS} 檔美股`, 4000);
     }else{
-      toast('📸 未辨識到代號\n台股股名請用「📝 文字輸入」功能', 5000);
+      toast('📸 未辨識到任何美股\n（台股請用「📝 台股文字」按鈕）', 5000);
     }
 
-    const allNew=[...newTW,...newUS];
-    if(allNew.length){
-      toast(`⏳ 補全 ${allNew.length} 筆新資料...`,3000);
-      for(const s of allNew){ await updateStock(s); render(); }
-      toast(`✅ ${allNew.length} 筆資料已補全`);
+    /* 自動補全新股票資料（公司名稱+分類） */
+    if(newUS.length){
+      toast(`⏳ 補全 ${newUS.length} 檔新美股資料...`, 3000);
+      for(const s of newUS){ await updateStock(s); render(); }
+      toast(`✅ ${newUS.length} 檔資料已補全`);
     }
   }catch(e){
     console.error('OCR 失敗:', e);
