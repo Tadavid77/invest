@@ -11,7 +11,7 @@
   <meta name="description" content="專業美股＋台股投資追蹤工具 — CFP專業版">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>投資大師 Pro MAX v13.9</title>
+  <title>投資大師 Pro MAX v14.0</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -183,7 +183,7 @@
 <header>
   <div class="hdr-top">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v13.9</span></h1>
+      <h1>📈 投資大師 Pro MAX <span style="font-size:10px;font-weight:400;color:#52525b;">v14.0</span></h1>
       <span id="apiSt" class="st-txt">⚪ 未設定 API Key</span>
     </div>
     <div class="hdr-btns">
@@ -333,7 +333,7 @@
 <div id="toast"></div>
 
 <!-- ══════════════════════════════════════════════════════════
-     投資大師 Pro MAX  v13.9
+     投資大師 Pro MAX  v14.0
      架構重大升級：美股（US）＋台股（TW）雙市場頁籤
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      資料架構：
@@ -374,6 +374,7 @@ let stocks = { US:[], TW:[] };
 let curMarket = 'US';
 let chartInst = null;
 let curTicker = null, curDays = 30;
+let chartReqId = 0;  /* 用於解決切換天數時的競態問題 */
 let apiKey = '';           // 由 restoreApiKey() 在 DOM ready 後填入
 let deferPWA = null;
 const volCache = {};
@@ -878,17 +879,22 @@ async function fetchTWQuoteOTC(ticker){
           volume:vol, prevVol, prevClose:isGood(pc)?pc:0 };
 }
 
-/* 台股公司基本資料（TWSE 上市公司列表，免費） */
-let twProfileCache = null;
+/* 台股公司基本資料（TWSE 上市公司列表，透過 CORS proxy） */
+let twProfileCache = null;     /* 上市公司清單 */
+let twProfileCacheO = null;    /* 上櫃公司清單 */
+
 async function fetchTWProfiles(){
   if(twProfileCache) return twProfileCache;
-  try{
-    const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
-      { signal: AbortSignal.timeout(10000) });
-    if(!res.ok) throw new Error('TWSE profile 失敗');
-    twProfileCache = await res.json();
-    return twProfileCache;
-  }catch{ return []; }
+  /* 上市完整清單，透過 CORS proxy */
+  twProfileCache = await fetchJsonViaProxy('https://openapi.twse.com.tw/v1/opendata/t187ap03_L', 12000) || [];
+  return twProfileCache;
+}
+
+async function fetchTPEXProfiles(){
+  if(twProfileCacheO) return twProfileCacheO;
+  /* 上櫃完整清單 */
+  twProfileCacheO = await fetchJsonViaProxy('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', 12000) || [];
+  return twProfileCacheO;
 }
 
 /* 台股行業別（TWSE 產業別代碼對照） */
@@ -905,42 +911,124 @@ const TW_IND_MAP = {
   'W':'文化創意業','M':'管理股票',
 };
 
+/* 內建熱門股票的分類備援表（API 失敗時使用，立即可用無需網路） */
+const TW_INDUSTRY_FALLBACK = {
+  /* 半導體 */
+  '2330':'半導體業','2454':'半導體業','2303':'半導體業','3711':'半導體業',
+  '2379':'半導體業','3034':'半導體業','5347':'半導體業','2408':'半導體業',
+  '2344':'半導體業','2337':'半導體業','8299':'半導體業','3661':'半導體業',
+  '6415':'半導體業','3443':'半導體業','3529':'半導體業','6770':'半導體業',
+  '2449':'半導體業','3105':'半導體業','3264':'半導體業','6147':'半導體業',
+  '8150':'半導體業','6239':'半導體業','2441':'半導體業','5269':'半導體業',
+  '5274':'半導體業','6488':'半導體業','3705':'半導體業','3016':'半導體業',
+  '5483':'半導體業','5351':'半導體業','5289':'半導體業','3013':'半導體業',
+  '8480':'半導體業','3047':'半導體業','3006':'半導體業','3035':'半導體業',
+  '6643':'半導體業','6533':'半導體業','6510':'半導體業','6223':'半導體業',
+  '6531':'半導體業','5443':'半導體業','4979':'半導體業','3081':'半導體業',
+  '6531':'半導體業','3363':'光電業','3163':'光電業','3019':'光電業',
+  /* PCB / 載板 */
+  '2368':'電子零組件業','2313':'電子零組件業','3037':'電子零組件業',
+  '3044':'電子零組件業','2367':'電子零組件業','2316':'電子零組件業',
+  '6274':'電子零組件業','6213':'電子零組件業','2383':'電子零組件業',
+  '8046':'電子零組件業','4958':'電子零組件業','8213':'電子零組件業',
+  '5469':'電子零組件業','2355':'電子零組件業','6251':'電子零組件業',
+  '6185':'電子零組件業','3023':'電子零組件業',
+  /* 電腦及周邊 */
+  '2317':'其他電子業','4938':'電腦及周邊設備業','3231':'電腦及周邊設備業',
+  '2324':'電腦及周邊設備業','2356':'電腦及周邊設備業','2382':'電腦及周邊設備業',
+  '6669':'電腦及周邊設備業','2376':'電腦及周邊設備業','2357':'電腦及周邊設備業',
+  '2353':'電腦及周邊設備業','2498':'電腦及周邊設備業','3515':'電腦及周邊設備業',
+  '2377':'電腦及周邊設備業','3017':'電腦及周邊設備業','3324':'電腦及周邊設備業',
+  '2421':'電腦及周邊設備業','6230':'電腦及周邊設備業','3653':'電腦及周邊設備業',
+  '2354':'電腦及周邊設備業','6176':'電腦及周邊設備業',
+  /* 通信網路 */
+  '2412':'通信網路業','3045':'通信網路業','4904':'通信網路業','2345':'通信網路業',
+  '3704':'通信網路業','4906':'通信網路業','2485':'通信網路業','3596':'通信網路業',
+  '6561':'通信網路業','3682':'通信網路業',
+  /* 光電 */
+  '3008':'光電業','3406':'光電業','2409':'光電業','3481':'光電業','8069':'光電業',
+  '6116':'光電業','5371':'光電業','3362':'光電業','3059':'光電業','2374':'光電業',
+  /* 金融保險 */
+  '2881':'金融保險業','2882':'金融保險業','2890':'金融保險業','2886':'金融保險業',
+  '2884':'金融保險業','2891':'金融保險業','2834':'金融保險業','2892':'金融保險業',
+  '5880':'金融保險業','2887':'金融保險業','2885':'金融保險業','2888':'金融保險業',
+  '2883':'金融保險業','2889':'金融保險業','2880':'金融保險業','2801':'金融保險業',
+  '2809':'金融保險業','2845':'金融保險業','2897':'金融保險業','5871':'金融保險業',
+  '9941':'金融保險業','6592':'金融保險業','2855':'金融保險業','2856':'金融保險業',
+  /* 塑化、鋼鐵、紡織 */
+  '1301':'塑膠工業','1303':'塑膠工業','1326':'塑膠工業','6505':'油電燃氣業',
+  '2002':'鋼鐵工業','2014':'鋼鐵工業','2015':'鋼鐵工業','2006':'鋼鐵工業',
+  '2007':'鋼鐵工業','2023':'鋼鐵工業','9957':'鋼鐵工業',
+  '1314':'塑膠工業','1310':'塑膠工業','1304':'塑膠工業','1709':'塑膠工業',
+  '1216':'食品工業','1210':'食品工業','1215':'食品工業','1229':'食品工業',
+  '1802':'玻璃陶瓷','9151':'食品工業','1702':'食品工業',
+  '2207':'汽車工業','2227':'汽車工業','2206':'汽車工業','2201':'汽車工業',
+  '2105':'橡膠工業','2106':'橡膠工業',
+  '1402':'紡織纖維','1409':'紡織纖維','1417':'紡織纖維','1419':'紡織纖維',
+  '1434':'紡織纖維','1440':'紡織纖維','1473':'紡織纖維',
+  /* 觀光餐旅 */
+  '2727':'觀光餐旅','2729':'觀光餐旅','2723':'觀光餐旅','2731':'觀光餐旅',
+  '2732':'觀光餐旅','2753':'觀光餐旅','2755':'觀光餐旅','2707':'觀光餐旅',
+  /* 航運 */
+  '2615':'航運業','2609':'航運業','2603':'航運業','2618':'航運業','2610':'航運業',
+  '2645':'航運業','2606':'航運業','2637':'航運業','2617':'航運業','2605':'航運業',
+  '2612':'航運業',
+  /* 生技醫療 */
+  '4157':'生技醫療業','4123':'生技醫療業','4174':'生技醫療業','4132':'生技醫療業',
+  '4152':'生技醫療業','4105':'生技醫療業','4128':'生技醫療業',
+  '6472':'生技醫療業','1707':'食品工業','1734':'生技醫療業','1760':'生技醫療業',
+  /* ETF */
+  '0050':'ETF','0056':'ETF','00878':'ETF','006208':'ETF','00850':'ETF',
+  '00891':'ETF','00915':'ETF','00919':'ETF','00929':'ETF','00757':'ETF',
+  '00631L':'ETF','00632R':'ETF','00937B':'ETF','00725B':'ETF','00935':'ETF',
+  '00922':'ETF','00905':'ETF','00830':'ETF','00893':'ETF','00839L':'ETF',
+  '00650L':'ETF','00752':'ETF','00753L':'ETF','00899':'ETF','00638L':'ETF',
+  '00911':'ETF','00637L':'ETF',
+  /* 上櫃熱門股 */
+  '5443':'半導體業','6187':'其他電子業','8033':'其他','2634':'其他電子業',
+  '2301':'電子零組件業','4971':'光電業','3013':'電子零組件業','3081':'通信網路業',
+  '3163':'光電業','4979':'光電業','6223':'半導體業','6510':'半導體業',
+  '6531':'半導體業','8480':'其他電子業',
+};
+
 async function fetchTWProfile(ticker){
-  try{
-    // 嘗試從 TWSE 公開資料取公司名稱和產業
-    const url = `https://openapi.twse.com.tw/v1/opendata/t187ap03_L`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if(!res.ok) throw new Error();
-    const data = await res.json();
-    const item = data.find(x => x['公司代號'] === ticker || x['股票代號'] === ticker);
-    if(item){
-      return{
-        name    : item['公司簡稱'] || item['公司名稱'] || ticker,
-        industry: item['產業類別'] || item['行業別'] || ''
-      };
-    }
-  }catch{}
+  /* Step 1: 內建備援表（最快，立即可用） */
+  const fallbackInd = TW_INDUSTRY_FALLBACK[ticker];
 
-  // 備援：從上市公司基本資料抓
+  /* Step 2: 上市公司清單（用 CORS proxy） */
   try{
-    const url2 = `https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d?stockNo=${ticker}`;
-    const res2 = await fetch(url2, { signal: AbortSignal.timeout(8000) });
-    if(res2.ok){
-      const d2 = await res2.json();
-      if(d2?.length){ return{ name: d2[0]['名稱']||ticker, industry: d2[0]['產業別']||'' }; }
+    const list = await fetchTWProfiles();
+    if(list?.length){
+      const item = list.find(x => (x['公司代號']||x['股票代號']) === ticker);
+      if(item){
+        const industry = item['產業類別'] || item['行業別'] || fallbackInd || '';
+        return{
+          name    : item['公司簡稱'] || item['公司名稱'] || ticker,
+          industry: industry
+        };
+      }
     }
-  }catch{}
+  }catch(e){ console.warn('[TW Profile] 上市失敗:', e.message); }
 
-  // 再備援：從上櫃公司資料抓
+  /* Step 3: 上櫃公司清單（用 CORS proxy） */
   try{
-    const url3 = `https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes`;
-    const res3 = await fetch(url3, { signal: AbortSignal.timeout(8000) });
-    if(res3.ok){
-      const d3 = await res3.json();
-      const item = d3.find(x=>x['SecuritiesCompanyCode']===ticker||x['CompanyCode']===ticker);
-      if(item){ return{ name:item['CompanyAbbreviation']||item['CompanyName']||ticker, industry:item['IndustryType']||'' }; }
+    const list = await fetchTPEXProfiles();
+    if(list?.length){
+      const item = list.find(x => (x['SecuritiesCompanyCode']||x['CompanyCode']) === ticker);
+      if(item){
+        const industry = item['IndustryType'] || fallbackInd || '';
+        return{
+          name    : item['CompanyAbbreviation'] || item['CompanyName'] || ticker,
+          industry: industry
+        };
+      }
     }
-  }catch{}
+  }catch(e){ console.warn('[TW Profile] 上櫃失敗:', e.message); }
+
+  /* Step 4: 全失敗時，至少回傳內建分類 */
+  if(fallbackInd){
+    return { name: ticker, industry: fallbackInd };
+  }
 
   return null;
 }
@@ -1226,7 +1314,26 @@ window.changeRange = async days=>{
 async function drawChart(ticker, days, market){
   const canvas = document.getElementById('chartCvs');
   const ctx    = canvas.getContext('2d');
-  if(chartInst){ chartInst.destroy(); chartInst=null; }
+
+  /* 每次呼叫產生新 reqId，若途中又被呼叫則此次作廢 */
+  const myReqId = ++chartReqId;
+
+  /* ══ 修復 "Canvas is already in use" 錯誤 ══
+     僅 chartInst.destroy() 不夠保險，因為：
+     1. 切換天數時若前次仍在 await，新的 Chart 會競態進入
+     2. Chart.js 內部 registry 可能有殘留實例
+     3. 必須用 Chart.getChart(canvas) 強制取得並銷毀
+  */
+  try{
+    /* 強制清除 Chart.js registry 中此 canvas 的所有實例 */
+    const existing = Chart.getChart && Chart.getChart(canvas);
+    if(existing) existing.destroy();
+  }catch(e){ console.warn('[chart] 清除舊圖警告:', e.message); }
+  if(chartInst){
+    try{ chartInst.destroy(); }catch{}
+    chartInst = null;
+  }
+
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='#6b7280'; ctx.font='14px system-ui'; ctx.textAlign='center';
   ctx.fillText('載入中...', canvas.width/2, canvas.height/2);
@@ -1235,13 +1342,12 @@ async function drawChart(ticker, days, market){
     let ohlc=[], vols=[];
 
     if(market==='TW'){
-      /* 台股K線：TWSE 日K資料 */
+      /* 台股K線：TWSE 日K資料（透過 CORS proxy） */
       const today  = new Date();
       const yyyymm = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}`;
-      const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${yyyymm}01&stockNo=${ticker}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      const data = await res.json();
-      if(data.stat!=='OK'||!data.data?.length) throw new Error('無台股K線資料');
+      const apiUrl = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${yyyymm}01&stockNo=${ticker}`;
+      const data   = await fetchJsonViaProxy(apiUrl, 12000);
+      if(!data || data.stat!=='OK' || !data.data?.length) throw new Error('無台股K線資料');
 
       // TWSE 格式：日期,成交股數,成交金額,開盤,最高,最低,收盤,漲跌,漲跌幅
       ohlc = data.data.slice(-days).map(row=>{
@@ -1267,6 +1373,10 @@ async function drawChart(ticker, days, market){
     }
 
     if(!ohlc.length) throw new Error('無資料');
+
+    /* 競態檢查：若期間有新請求進來，當前請求作廢 */
+    if(myReqId !== chartReqId) return;
+
     canvas.style.height='420px';
     chartInst = new Chart(ctx,{
       data:{ datasets:[
@@ -1291,6 +1401,8 @@ async function drawChart(ticker, days, market){
       }
     });
   }catch(e){
+    /* 競態檢查：若期間有新請求進來，當前錯誤訊息不顯示 */
+    if(myReqId !== chartReqId) return;
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle='#ef4444'; ctx.font='13px system-ui'; ctx.textAlign='center';
     ctx.fillText(`⚠️ ${e.message}`, canvas.width/2, 200);
@@ -1443,6 +1555,103 @@ const TW_BUILTIN_MAP = {
   '精測':'6510','倍利科':'8480','主動統一':'00911','台股增長':'00911',
   '聯亞':'3081','上詮':'3363','波若威':'3163','華星光':'4979','旺矽':'6223',
   'IET-KY':'4971','愛普':'6531','均豪':'5443','金像電':'2368','亞光':'3019',
+
+  /* ════ AI / Server / CoWoS / HBM 熱門股 ════ */
+  '緯穎':'6669','技嘉':'2376','華擎':'3515','英業達':'2356','緯創':'3231',
+  '廣達':'2382','和碩':'4938','超眾':'6230','奇鋐':'3017','雙鴻':'3324',
+  '健策':'3653','建準電機':'2421','嘉澤':'3533','信驊':'5274','祥碩':'5269',
+  '世芯-KY':'3661','創意':'3443','M31':'6643','智原':'3035','力旺':'3529',
+  '京鼎':'3413','弘塑':'3131','辛耘':'3583','帆宣':'6196','均豪精密':'5443',
+  '志聖工業':'2467','梭特科技':'2540','閎康科技':'3587','頎邦科技':'6147',
+  '京元電子':'2449','穎崴科技':'6515','中華精測':'6510','旺矽科技':'6223',
+
+  /* ════ 個別補充常見股票 ════ */
+  '台肥':'1722','東聯':'1710','榮化':'1709','聯成':'1313','華夏':'1305',
+  '亞聚':'1308','華紙':'1905','正隆':'1904','永豐餘':'1907','榮成':'1909',
+  '東陽':'1319','永記':'1726','長興材料':'1717',
+  '日勝生':'2547','興富發':'2542','長虹':'5534','華固':'2548','遠雄':'5522',
+  '三圓':'4416','新潤':'6186','潤泰新':'9945','名軒':'1442','根基':'2546',
+  '中工':'2515','華建':'2530','龍邦':'2514','勝華':'2384','東森':'2614',
+  '泛航':'2606','志信':'2611','華航':'2610','長榮國際':'2603','長榮航空':'2618',
+  '新光鋼':'2031','大成鋼':'2027','春雨工廠':'2012','友訊':'2332','正崴精密':'2392',
+  '可成':'2474','研華':'2395','義隆電':'2458','凌陽科技':'2401','普誠':'6129',
+  '所羅門':'2359','力新國際':'6151','聯傑':'3094','晶睿':'3454','驊宏':'2057',
+  '互動':'6486','南電':'8046','旺玖':'6233','大眾':'3701','華擎科技':'3515',
+
+  /* ════ AI / 散熱 / 機殼相關 ════ */
+  '勤誠':'8210','營邦':'3693','尼得':'3576','晟銘':'3013','迎廣':'6117',
+  '昌泓':'8276','水冷':'8083','友佳':'6168','宇隆':'2233','岱稜':'3303',
+  '尚立':'2855','華孚':'6235','大量':'3167','光罩':'2338',
+
+  /* ════ 生技醫療補充 ════ */
+  '杏一':'4175','寶島科':'5312','大樹':'6469','佐登-KY':'4190','佐登':'4190',
+  '懷特':'4108','德英':'4911','寶利徠':'1813','友華':'4120','大陸':'3105',
+  '生展':'8279','普生':'4117','寶齡富錦藥廠':'1760','南光':'1752','東生華':'8432',
+  '世達':'5469','旭富':'4119','弘帆':'8433','喬山健康':'1736',
+
+  /* ════ 餐飲補充 ════ */
+  '王品集團':'2727','瓦城泰統':'2729','美食達人':'2723','雄獅旅遊':'2731',
+  '六角國際':'2732','八方雲集':'2753','揚秦國際':'2755','美食-KY':'2723',
+  '亞洲藏壽司':'2754','築間':'7723','悠旅生活':'8478','王座-KY':'2867',
+  '元家':'8930','中華食品':'4205','聯華食':'1231','卡優旅':'2748',
+
+  /* ════ 文創、傳媒 ════ */
+  '智冠':'5478','華義':'3086','宇峻':'3546','大宇資':'6111','鈊象':'3293',
+  '網銀國際':'8359','傳奇':'4994','遊戲橘子':'6180','華義國際':'3086',
+  '紅心辣椒':'4946','戲谷':'8077','三商行':'2905',
+
+  /* ════ 半導體封測補充 ════ */
+  '頎邦科技':'6147','南茂科技':'8150','京元電子':'2449','嘉晶電子':'3016',
+  '聯亞光電':'3081','中華精測':'6510','均豪精密':'5443','梭特科技':'2540',
+  '帆宣系統':'6196','志聖工業':'2467','弘塑科技':'3131','辛耘企業':'3583',
+
+  /* ════ 上櫃熱門 ════ */
+  '長科*':'6548','尼得電子':'3576','建準電機':'2421','研揚':'6579',
+  '雙鴻科技':'3324','奇鋐科技':'3017','超眾科技':'6230','瑞祺電通':'6416',
+  '飛宏':'2457','英拓':'4977','宏正自動':'6277','建漢':'3062','正凌':'8147',
+  '波若威':'3163','華星光通':'4979','光環':'3234','上詮':'3363','華電':'1603',
+  '上品':'4770','弘塑':'3131','均豪':'5443','弘憶股':'3312','金麗-KY':'8429',
+
+  /* ════ 化工 ════ */
+  '中橡':'2104','正新':'2105','建大':'2106','華豐':'2109','大成鋼':'2027',
+  '大江':'8436','日勝生':'2547','大眾':'3701','智冠':'5478','華義':'3086',
+  '南港輪胎':'2101','正新橡膠':'2105','建大工業':'2106',
+  '長興':'1717','永光':'1711','榮化':'1709','東聯':'1710','和益':'1709',
+  '台肥':'1722','聯成':'1313','東鹼':'1708','永記':'1726','上曜':'1316',
+
+  /* ════ 紡織、成衣 ════ */
+  '聚陽':'1477','儒鴻':'1476','薇姿':'1454','南緯':'1467','偉全':'1465',
+  '宏遠':'1460','南紡':'1440','嘉裕':'1417','力鵬':'1447','大魯閣':'1432',
+
+  /* ════ 鋼鐵、金屬補充 ════ */
+  '官田鋼':'2017','春雨':'2012','春雨工廠':'2012','沛波':'6248','彰源':'2030',
+  '燁聯':'9957','燁興':'2007','燁輝':'2023','榮剛':'5009','彬台科技':'6191',
+  '允強':'2034','志聯':'2204','東和鋼鐵':'2006','大成鋼':'2027','日鋼':'2027',
+  '中鴻鋼鐵':'2014','新光鋼':'2031','友嘉實業':'1525','貿聯':'3665',
+
+  /* ════ 通路 / 電商 ════ */
+  'momo':'8454','富邦媒':'8454','PChome':'8044','網家':'8044','創業家':'8477',
+  '燦坤':'2430','聯強':'2347','文曄':'3036','大聯大':'3702','至上':'8112',
+  '增你強':'3028','詮欣':'6205','華電網':'6163','華立企業':'3010',
+
+  /* ════ 機殼／散熱／伺服器補充 ════ */
+  '宏佳騰':'1599','東培':'7714','勝麗':'6238','元晶':'6443','聚積':'3527',
+  '茂達':'6138','立積':'4968','聯傑國際':'3094','晶睿通訊':'3454',
+  '雙鴻熱導':'3324','奇鋐熱導':'3017','超眾熱導':'6230',
+
+  /* ════ 銀行、證券補充 ════ */
+  '高雄銀':'2836','彰銀':'2801','京城銀行':'2809','遠東銀行':'2845',
+  '統一綜合證':'2855','元富證券':'2856','宏遠證':'6015','大眾證':'6019',
+  '群益證':'6005','凱基證':'6008','日盛金':'5820',
+
+  /* ════ 業績特殊（最近熱門） ════ */
+  '創意電子':'3443','聯發科技':'2454','日月光半導體':'3711','南亞科技':'2408',
+  '台積電子':'2330','聯華電子':'2303','旺宏電子':'2337','華邦電子':'2344',
+  '群聯電子':'8299','瑞昱半導':'2379','聯詠科技':'3034',
+
+  /* ════ 文化創意 ════ */
+  '網銀':'8359','智冠科技':'5478','華義':'3086','宇峻奧汀':'3546','大宇資訊':'6111',
+  '鈊象電子':'3293','傳奇':'4994','遊戲橘子':'6180','華義國際':'3086','三商':'2905',
 };
 
 let twNameMap = null;
@@ -1454,29 +1663,9 @@ async function buildTWNameMap(){
   /* 先用內建對照表初始化 */
   twNameMap = { ...TW_BUILTIN_MAP };
 
-  /* 嘗試透過 CORS proxy 取得完整清單（可失敗，有內建備援） */
-  const proxies = [
-    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  ];
-
-  async function fetchViaProxy(apiUrl){
-    for(const makeProxy of proxies){
-      try{
-        const res = await fetch(makeProxy(apiUrl), { signal: AbortSignal.timeout(8000) });
-        if(!res.ok) continue;
-        const wrapper = await res.json();
-        /* allorigins 回傳 { contents: '...' }，corsproxy 直接回傳 JSON */
-        const raw = wrapper.contents ?? JSON.stringify(wrapper);
-        return JSON.parse(raw);
-      }catch{ continue; }
-    }
-    return null;
-  }
-
-  /* TWSE 上市 */
+  /* 透過統一的 CORS proxy 取得 TWSE 上市完整清單 */
   try{
-    const d = await fetchViaProxy('https://openapi.twse.com.tw/v1/opendata/t187ap03_L');
+    const d = await fetchJsonViaProxy('https://openapi.twse.com.tw/v1/opendata/t187ap03_L', 10000);
     if(d?.length){
       d.forEach(item=>{
         const code = (item['公司代號']||item['股票代號']||'').trim();
@@ -1488,13 +1677,13 @@ async function buildTWNameMap(){
         const short = full.replace(/股份有限公司|有限公司|股份|公司$/g,'').trim();
         if(short && short !== full && short.length >= 2) twNameMap[short] = code;
       });
-      console.log('[TW名稱表] TWSE 上市已載入');
+      console.log(`[TW名稱表] TWSE 上市已載入 (${d.length} 筆)`);
     }
   }catch(e){ console.warn('[TW名稱表] TWSE 失敗，使用內建表:', e); }
 
-  /* TPEX 上櫃 */
+  /* 上櫃 TPEX */
   try{
-    const d = await fetchViaProxy('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes');
+    const d = await fetchJsonViaProxy('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', 10000);
     if(d?.length){
       d.forEach(item=>{
         const code = (item['SecuritiesCompanyCode']||item['CompanyCode']||'').trim();
@@ -1506,7 +1695,7 @@ async function buildTWNameMap(){
         const short = full.replace(/股份有限公司|有限公司|股份|公司$/g,'').trim();
         if(short && short !== full && short.length >= 2) twNameMap[short] = code;
       });
-      console.log('[TW名稱表] TPEX 上櫃已載入');
+      console.log(`[TW名稱表] TPEX 上櫃已載入 (${d.length} 筆)`);
     }
   }catch(e){ console.warn('[TW名稱表] TPEX 失敗，使用內建表:', e); }
 
@@ -1681,7 +1870,7 @@ window.exportCSV = ()=>{
 ══════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════
-   OCR 模組 v13.9
+   OCR 模組 v14.0
    ─────────────────────────────────────────────────────
    台股：完全放棄 chi_tra（會無限卡住 80+ 分鐘）
          改用「文字批次輸入」：使用者貼上股名→對照表查代號
